@@ -33,6 +33,8 @@ export interface ServerConfigJson {
   rollouts?: RolloutConfigJson[];
   // Public proxy hostname.
   hostname?: string;
+  // Port for the management API
+  apiPort?: number;
 }
 
 // Serialized format for rollouts.

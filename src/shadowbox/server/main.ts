@@ -77,16 +77,16 @@ async function main() {
     logging.warn('process.env.SB_METRICS_URL not set, using default');
   }
 
+  const serverConfig =
+    server_config.readServerConfig(getPersistentFilename('shadowbox_server_config.json'));
+
   const DEFAULT_PORT = 8081;
-  const apiPortNumber = Number(process.env.SB_API_PORT || DEFAULT_PORT);
+  const apiPortNumber = Number(serverConfig.data().apiPort || process.env.SB_API_PORT || DEFAULT_PORT);
   if (isNaN(apiPortNumber)) {
-    logging.error(`Invalid SB_API_PORT: ${process.env.SB_API_PORT}`);
+    logging.error(`Invalid API port.  From config: ${serverConfig.data().apiPort}, SB_API_PORT: ${process.env.SB_API_PORT}.`);
     process.exit(1);
   }
   portProvider.addReservedPort(apiPortNumber);
-
-  const serverConfig =
-      server_config.readServerConfig(getPersistentFilename('shadowbox_server_config.json'));
 
   const proxyHostname = serverConfig.data().hostname || process.env.SB_PUBLIC_IP;
   

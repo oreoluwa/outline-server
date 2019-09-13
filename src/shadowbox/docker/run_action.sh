@@ -20,7 +20,7 @@ readonly OUTLINE_DIR=/tmp/outline
 readonly STATE_DIR=$OUTLINE_DIR/persisted-state
 readonly STATE_CONFIG=$STATE_DIR/shadowbox_server_config.json
 mkdir -p $STATE_DIR && touch "$OUTLINE_DIR/config.json"
-[[ -e $STATE_CONFIG ]] || echo "{\"hostname\":\"127.0.0.1\"}" > $STATE_CONFIG
+[[ -e $STATE_CONFIG ]] || echo "{\"hostname\":\"127.0.0.1\", \"apiPort\":2357}" > $STATE_CONFIG
 source $ROOT_DIR/src/shadowbox/scripts/make_test_certificate.sh "${OUTLINE_DIR}"
 
 # TODO: mount a folder rather than individual files.

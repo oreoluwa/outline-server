@@ -78,7 +78,6 @@ Delete dangling images:
 docker rmi $(docker images -f dangling=true -q)
 ```
 
-
 ## Access Keys Management API
 
 In order to utilize the Management API, you'll need to know the apiUrl for your Outline server.
@@ -169,3 +168,14 @@ DOCKER_CONTENT_TRUST=0 SHADOWBOX_IMAGE=$USER/shadowbox yarn do shadowbox/integra
 ```
 
 You can add tags if you need different versions in different clients.
+
+### Testing Changes to the Server Config
+
+If your change includes new fields in the server config which are needed at server
+start-up time, then you mey need to remove the pre-existing test config:
+
+```
+rm /tmp/outline/persisted-state/shadowbox_server_config.json
+```
+
+This will warn about deleting a write-protected file, which is okay to ignore.  You will then need to hand-edit the JSON string in src/shadowbox/docker/run_action.sh.
