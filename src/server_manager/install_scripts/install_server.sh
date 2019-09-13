@@ -328,7 +328,6 @@ function add_api_url_to_config() {
 }
 
 function check_firewall() {
-  # TODO(cohenjon) This is incorrect if access keys are using more than one port.
   local readonly ACCESS_KEY_PORT=$(curl --insecure -s ${LOCAL_API_URL}/access-keys | 
       docker exec -i shadowbox node -e '
           const fs = require("fs");
