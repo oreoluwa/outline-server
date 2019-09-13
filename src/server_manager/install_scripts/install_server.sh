@@ -254,7 +254,6 @@ function write_config() {
   config+=("\"hostname\":\"${PUBLIC_HOSTNAME}\"")
   config+=("\"apiPort\":${API_PORT}")
   if [[ ${#config[@]} > 0 ]]; then
-  echo "config address: $STATE_DIR/shadowbox_server_config.json"
     echo "{"$(join , "${config[@]}")"}" > $STATE_DIR/shadowbox_server_config.json
   fi
 }
