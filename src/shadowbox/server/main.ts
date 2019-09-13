@@ -56,11 +56,6 @@ function reserveExistingAccessKeyPorts(
   dedupedPorts.forEach(p => portProvider.addReservedPort(p));
 }
 
-function isValidIPv4(addr: string): boolean {
-  return true;
-  // TODO implement
-}
-
 async function main() {
   const verbose = process.env.LOG_LEVEL === 'debug';
   const portProvider = new PortProvider();
@@ -92,10 +87,6 @@ async function main() {
   
   if (!proxyHostname) {
     logging.error('Need to specify SB_PUBLIC_IP or hostname in server config for invite links');
-    process.exit(1);
-  }
-  if (!isValidIPv4(proxyHostname)) {
-    logging.error(`Invalid hostname: ${proxyHostname}.  Hostname must be a valid IPv4 address.`);
     process.exit(1);
   }
 

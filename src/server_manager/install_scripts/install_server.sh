@@ -256,19 +256,14 @@ function write_config() {
   if [[ ${#config[@]} > 0 ]]; then
   echo "config address: $STATE_DIR/shadowbox_server_config.json"
     echo "{"$(join , "${config[@]}")"}" > $STATE_DIR/shadowbox_server_config.json
-    echo "config:"
-    cat $STATE_DIR/shadowbox_server_config.json
   fi
 }
 
 function start_shadowbox() {
-  # TODO(fortuna): Write API_PORT to config file,
-  # rather than pass in the environment.
   declare -a docker_shadowbox_flags=(
     --name shadowbox --restart=always --net=host
     -v "${STATE_DIR}:${STATE_DIR}"
     -e "SB_STATE_DIR=${STATE_DIR}"
-    -e "SB_API_PORT=${API_PORT}"
     -e "SB_API_PREFIX=${SB_API_PREFIX}"
     -e "SB_CERTIFICATE_FILE=${SB_CERTIFICATE_FILE}"
     -e "SB_PRIVATE_KEY_FILE=${SB_PRIVATE_KEY_FILE}"
