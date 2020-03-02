@@ -26,6 +26,8 @@ import {ManagerMetrics} from './manager_metrics';
 import {ServerConfigJson} from './server_config';
 import {SharedMetricsPublisher} from './shared_metrics';
 
+import {HooksMiddlewareHandler} from './hooks_middleware_handler';
+
 // Creates a AccessKey response.
 function accessKeyToJson(accessKey: AccessKey) {
   return {
@@ -73,32 +75,36 @@ enum HttpSuccess {
 }
 
 export function bindService(
-    apiServer: restify.Server, apiPrefix: string, service: ShadowsocksManagerService) {
-  apiServer.put(`${apiPrefix}/name`, service.renameServer.bind(service));
-  apiServer.get(`${apiPrefix}/server`, service.getServer.bind(service));
+    apiServer: restify.Server, apiPrefix: string, service: ShadowsocksManagerService, hooks: HooksMiddlewareHandler) {
+  apiServer.put(`${apiPrefix}/name`, hooks.renameServer.bind(hooks), service.renameServer.bind(service));
+  apiServer.get(`${apiPrefix}/server`, hooks.getServer.bind(hooks), service.getServer.bind(service));
   apiServer.put(
       `${apiPrefix}/server/hostname-for-access-keys`,
+      hooks.setHostnameForAccessKeys.bind(hooks),
       service.setHostnameForAccessKeys.bind(service));
   apiServer.put(
       `${apiPrefix}/server/port-for-new-access-keys`,
+      hooks.setPortForNewAccessKeys.bind(hooks),
       service.setPortForNewAccessKeys.bind(service));
 
-  apiServer.post(`${apiPrefix}/access-keys`, service.createNewAccessKey.bind(service));
-  apiServer.get(`${apiPrefix}/access-keys`, service.listAccessKeys.bind(service));
+  apiServer.post(`${apiPrefix}/access-keys`, hooks.createNewAccessKey.bind(hooks), service.createNewAccessKey.bind(service));
+  apiServer.get(`${apiPrefix}/access-keys`, hooks.listAccessKeys.bind(hooks), service.listAccessKeys.bind(service));
 
-  apiServer.del(`${apiPrefix}/access-keys/:id`, service.removeAccessKey.bind(service));
-  apiServer.put(`${apiPrefix}/access-keys/:id/name`, service.renameAccessKey.bind(service));
+  apiServer.del(`${apiPrefix}/access-keys/:id`, hooks.removeAccessKey.bind(hooks), service.removeAccessKey.bind(service));
+  apiServer.put(`${apiPrefix}/access-keys/:id/name`, hooks.renameAccessKey.bind(hooks), service.renameAccessKey.bind(service));
 
-  apiServer.get(`${apiPrefix}/metrics/transfer`, service.getDataUsage.bind(service));
-  apiServer.get(`${apiPrefix}/metrics/enabled`, service.getShareMetrics.bind(service));
-  apiServer.put(`${apiPrefix}/metrics/enabled`, service.setShareMetrics.bind(service));
+  apiServer.get(`${apiPrefix}/metrics/transfer`, hooks.getDataUsage.bind(hooks), service.getDataUsage.bind(service));
+  apiServer.get(`${apiPrefix}/metrics/enabled`, hooks.getShareMetrics.bind(hooks), service.getShareMetrics.bind(service));
+  apiServer.put(`${apiPrefix}/metrics/enabled`, hooks.setShareMetrics.bind(hooks), service.setShareMetrics.bind(service));
 
   // Experimental APIs
   apiServer.put(
       `${apiPrefix}/experimental/access-key-data-limit`,
+      hooks.setAccessKeyDataLimit.bind(hooks),
       service.setAccessKeyDataLimit.bind(service));
   apiServer.del(
       `${apiPrefix}/experimental/access-key-data-limit`,
+      hooks.removeAccessKeyDataLimit.bind(hooks),
       service.removeAccessKeyDataLimit.bind(service));
 }
 

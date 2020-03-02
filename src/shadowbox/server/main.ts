@@ -33,6 +33,10 @@ import {AccessKeyConfigJson, ServerAccessKeyRepository} from './server_access_ke
 import * as server_config from './server_config';
 import {OutlineSharedMetricsPublisher, PrometheusUsageMetrics, RestMetricsCollectorClient, SharedMetricsPublisher} from './shared_metrics';
 
+import {HooksManager} from '../infrastructure/lifecycle_hooks';
+import {HooksMiddlewareHandler} from './hooks_middleware_handler';
+import {userConfig} from '../config';
+
 const DEFAULT_STATE_DIR = '/root/shadowbox/persisted-state';
 const MMDB_LOCATION = '/var/lib/libmaxminddb/ip-country.mmdb';
 
@@ -123,6 +127,10 @@ async function main() {
   logging.info(`outline-ss-server metrics is at ${ssMetricsLocation}`);
   prometheusConfigJson.scrape_configs.push(
       {job_name: 'outline-server-ss', static_configs: [{targets: [ssMetricsLocation]}]});
+  if (process.env.OUTLINE_SERVER_SHADOWSOCKS_KUBERNETES_CONFIG_JSON) {
+    const ssKubernetesDiscoveryConfig = require(process.env.OUTLINE_SERVER_SHADOWSOCKS_KUBERNETES_CONFIG_JSON);
+    prometheusConfigJson.scrape_configs.push(ssKubernetesDiscoveryConfig);
+  }
   const shadowsocksServer =
       new OutlineShadowsocksServer(
           getPersistentFilename('outline-ss-server/config.yml'), verbose, ssMetricsLocation)
@@ -172,18 +180,26 @@ async function main() {
   // Pre-routing handlers
   apiServer.pre(restify.CORS());
 
+  const hooksManager = new HooksManager();
+  const hooksMiddlewares = new HooksMiddlewareHandler(hooksManager);
+
   // All routes handlers
   const apiPrefix = process.env.SB_API_PREFIX ? `/${process.env.SB_API_PREFIX}` : '';
   apiServer.pre(restify.pre.sanitizePath());
   apiServer.use(restify.jsonp());
   apiServer.use(restify.bodyParser());
-  bindService(apiServer, apiPrefix, managerService);
+  bindService(apiServer, apiPrefix, managerService, hooksMiddlewares);
 
+  attachToHooks(hooksManager);
   apiServer.listen(apiPortNumber, () => {
     logging.info(`Manager listening at ${apiServer.url}${apiPrefix}`);
   });
 
   await accessKeyRepository.start(new RealClock());
+}
+
+function attachToHooks(hooksManager: HooksManager) {
+  Object.keys(userConfig.hooks).forEach(event => hooksManager.addHook(event, userConfig.hooks[event]));
 }
 
 function getPersistentFilename(file: string): string {
