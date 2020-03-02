@@ -85,7 +85,10 @@ jobs:
       sudo: required
       services: docker
       script:
-        - curl -sfL https://raw.githubusercontent.com/ldez/seihon/7d38218cc397499330219dd76a39f26e2b545f81/godownloader.sh | bash -s -- -b /usr/local/bin
+        - |
+          curl -sfL https://raw.githubusercontent.com/ldez/seihon/7d38218cc397499330219dd76a39f26e2b545f81/godownloader.sh | bash -s -- -b .
+          chmod +x seihon
+          sudo mv seihon /usr/local/bin
         - docker run --rm --privileged hypriot/qemu-register
         - yarn do shadowbox/server/build
         - echo $QUAY_IO_PASSWORD | docker login -u="$QUAY_IO_USERNAME" --password-stdin
