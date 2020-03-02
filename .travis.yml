@@ -92,7 +92,7 @@ jobs:
         - docker run --rm --privileged hypriot/qemu-register
         - yarn do shadowbox/server/build
         - echo $QUAY_IO_PASSWORD | docker login -u="$QUAY_IO_USERNAME" --password-stdin
-        - seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8 -b node:8.15.0-alpine
+        - seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v8 -b node:8.15.0-alpine
 
     # - stage: deploy
     #   env:
