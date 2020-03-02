@@ -94,36 +94,36 @@ jobs:
         - echo $QUAY_IO_PASSWORD | docker login -u="$QUAY_IO_USERNAME" --password-stdin
         - seihon publish -v "${TRAVIS_TAG}" -v "daily" --i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8 -b node:8.15.0-alpine
 
-    - stage: deploy
-      env:
-        - DESC=linux manager
-      addons:
-        apt:
-          packages:
-          - rpm
-      script: yarn do server_manager/electron_app/package_linux
+    # - stage: deploy
+    #   env:
+    #     - DESC=linux manager
+    #   addons:
+    #     apt:
+    #       packages:
+    #       - rpm
+    #   script: yarn do server_manager/electron_app/package_linux
 
     # https://www.electron.build/multi-platform-build
-    - stage: deploy
-      env:
-        - DESC=windows manager
-      sudo: required
-      services: docker
-      script:
-        - yarn do server_manager/electron_app/build
-        - docker pull electronuserland/builder:wine
-        - docker run --rm
-            -v ${PWD}:/project
-            -v ~/.cache/electron:/root/.cache/electron
-            -v ~/.cache/electron-builder:/root/.cache/electron-builder
-            electronuserland/builder:wine
-            /bin/bash -c "yarn do server_manager/electron_app/package_only_windows" || travis_terminate $?
+    # - stage: deploy
+    #   env:
+    #     - DESC=windows manager
+    #   sudo: required
+    #   services: docker
+    #   script:
+    #     - yarn do server_manager/electron_app/build
+    #     - docker pull electronuserland/builder:wine
+    #     - docker run --rm
+    #         -v ${PWD}:/project
+    #         -v ~/.cache/electron:/root/.cache/electron
+    #         -v ~/.cache/electron-builder:/root/.cache/electron-builder
+    #         electronuserland/builder:wine
+    #         /bin/bash -c "yarn do server_manager/electron_app/package_only_windows" || travis_terminate $?
 
-    - stage: deploy
-      env:
-        - DESC=macos manager
-      os: osx
-      script: yarn do server_manager/electron_app/package_macos
+    # - stage: deploy
+    #   env:
+    #     - DESC=macos manager
+    #   os: osx
+    #   script: yarn do server_manager/electron_app/package_macos
 
     # Note that because we cannot currently sign Windows binaries on Travis,
     # these must be manually built and uploaded to the releases page.
