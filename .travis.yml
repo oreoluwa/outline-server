@@ -16,14 +16,15 @@ before_install:
   - export PATH="$HOME/.yarn/bin:$PATH"
 
 stages:
-  - name: tag
-    if: type = cron
+  # - name: tag
+  #   if: type = cron
   - name: build and unit test
     if: type != cron
   - name: integration test
     if: type != cron
   - name: deploy
-    if: tag =~ ^daily
+    if: type != cron
+    # if: tag =~ ^daily
   - name: release
     if: tag =~ ^v[0-9]
 
@@ -65,18 +66,30 @@ jobs:
           sudo mv docker-compose /usr/local/bin
         - yarn do shadowbox/integration_test/run
 
+    # - stage: deploy
+    #   env:
+    #     - DESC=shadowbox docker image
+    #   sudo: required
+    #   services: docker
+    #   script:
+    #     - yarn do shadowbox/docker/build
+    #     - docker login quay.io -u="$QUAY_IO_USERNAME" -p="$QUAY_IO_PASSWORD"
+    #     - docker tag outline/shadowbox quay.io/outline/shadowbox:$TRAVIS_TAG
+    #     - docker push quay.io/outline/shadowbox:$TRAVIS_TAG
+    #     - docker tag outline/shadowbox quay.io/outline/shadowbox:daily
+    #     - docker push quay.io/outline/shadowbox:daily
+
     - stage: deploy
       env:
-        - DESC=shadowbox docker image
+        - DESC=shadowbox docker image-ARM
       sudo: required
       services: docker
       script:
-        - yarn do shadowbox/docker/build
-        - docker login quay.io -u="$QUAY_IO_USERNAME" -p="$QUAY_IO_PASSWORD"
-        - docker tag outline/shadowbox quay.io/outline/shadowbox:$TRAVIS_TAG
-        - docker push quay.io/outline/shadowbox:$TRAVIS_TAG
-        - docker tag outline/shadowbox quay.io/outline/shadowbox:daily
-        - docker push quay.io/outline/shadowbox:daily
+        - curl -sfL https://raw.githubusercontent.com/ldez/seihon/7d38218cc397499330219dd76a39f26e2b545f81/godownloader.sh | bash -s -- -b /usr/local/bin
+        - docker run --rm --privileged hypriot/qemu-register
+        - yarn do shadowbox/server/build
+        - echo $QUAY_IO_PASSWORD | docker login -u="$QUAY_IO_USERNAME" --password-stdin
+        - seihon publish -v "${TRAVIS_TAG}" -v "daily" --i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8 -b node:8.15.0-alpine
 
     - stage: deploy
       env:
