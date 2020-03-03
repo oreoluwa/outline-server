@@ -78,7 +78,7 @@ jobs:
         - echo $DOCKER_PASSWORD | docker login -u="$DOCKER_USERNAME" --password-stdin
         # skipping arm.v7 because the base docker image(node:8.15.0-alpine) doesn't have a arm.v7 manifest included,
         # sh -c 'DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect node:8.15.0-alpine'
-        - seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v8,amd64,386 -b node:8.15.0-alpine
+        - seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v8,amd64,386 -b node:13.8.0-alpine
 
 env:
   global:
