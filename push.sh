@@ -15,8 +15,12 @@ upload_files() {
   # https://github.com/Jigsaw-Code/outline-server.git
   git remote add origin https://oreoluwa:${GH_TOKEN}@github.com/oreoluwa/outline-server.git > /dev/null 2>&1
   git remote add upstream https://github.com/Jigsaw-Code/outline-server.git > /dev/null 2>&1
-  git fetch upstream && git merge upstream/master
+  echo "Fetching updates from upstream server"
+  git fetch upstream
+  echo "Merging updates from upstream/master to local branch"
+  git merge --commit -m "Merge branch 'master' of github.com:Jigsaw-Code/outline-server" upstream/master
   # git pull upstream master
+  echo "push the latest commit"
   git push --quiet --set-upstream origin shadowbox/deploy
 }
 
