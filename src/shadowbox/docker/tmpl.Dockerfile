@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Versions can be found at https://github.com/Jigsaw-Code/outline-ss-server/releases
-ARG SS_VERSION=1.1.0
+ARG SS_VERSION=1.1.5
 
 FROM golang:alpine AS ss_builder
 # add git so we can build outline-ss-server from source
@@ -31,7 +31,7 @@ RUN go build -o /app/outline-ss-server
 
 FROM golang:alpine AS prombuilder
 # Versions can be found at https://github.com/prometheus/prometheus/releases
-ARG PM_VERSION=2.4.3
+ARG PM_VERSION=2.18.1
 # add git so we can build the prometheus version from source
 RUN apk add --update git && rm -rf /var/cache/apk/*
 WORKDIR /tmp
@@ -46,21 +46,40 @@ RUN go mod vendor
 RUN go build -o /app/prometheus ./cmd/prometheus
 
 
-# See versions at https://hub.docker.com/_/node/
-FROM {{ .RuntimeImage }}
+ARG NODE_IMAGE={{ .RuntimeImage }}
 
-# Versions can be found at https://github.com/Jigsaw-Code/outline-ss-server/releases
-ARG SS_VERSION
+# Multi-stage build: use a build image to prevent bloating the shadowbox image with dependencies.
+# Run `yarn` and build inside the container to package the right dependencies for the image.
+FROM ${NODE_IMAGE} AS build
+
+RUN apk add --no-cache --upgrade bash
+WORKDIR /
+
+# Don't copy node_modules and other things not needed for install.
+COPY package.json yarn.lock ./
+COPY src/shadowbox/package.json src/shadowbox/
+RUN yarn install
+
+# We copy the source code only after yarn install, so that source code changes don't trigger re-installs.
+COPY scripts scripts/
+COPY src src/
+COPY tsconfig.json ./
+COPY third_party third_party
+RUN ROOT_DIR=/ yarn do shadowbox/server/build
+
+# shadowbox image
+FROM ${NODE_IMAGE}
 
 # Save metadata on the software versions we are using.
-LABEL shadowbox.node_version=8.15.0
-LABEL shadowbox.outline-ss-server_version="${SS_VERSION}"
+LABEL shadowbox.node_version=12.16.3
+# Keep in sync with version in third_party/outline-ss-server
+LABEL shadowbox.outline-ss-server_version=1.1.5
 
 ARG GITHUB_RELEASE
 LABEL shadowbox.github.release="${GITHUB_RELEASE}"
 
 # We use curl to detect the server's public IP. We need to use the --date option in `date` to
-# safely grab the ip-to-country database.
+# safely grab the ip-to-country database
 RUN apk add --no-cache --upgrade coreutils curl
 
 COPY src/shadowbox/scripts scripts/
@@ -68,25 +87,19 @@ COPY src/shadowbox/scripts/update_mmdb.sh /etc/periodic/weekly/update_mmdb
 
 RUN /etc/periodic/weekly/update_mmdb
 
-WORKDIR /root/shadowbox
-
-RUN mkdir bin
-
-COPY --from=ss_builder /app/outline-ss-server ./bin/
-COPY --from=prombuilder /app/prometheus ./bin/
-
-COPY src/shadowbox/package.json .
-COPY yarn.lock .
-# TODO: Replace with plain old "yarn" once the base image is fixed:
-#       https://github.com/nodejs/docker-node/pull/639
-RUN /opt/yarn-v$YARN_VERSION/bin/yarn install --prod
-
-# Install management service
-COPY build/shadowbox/app app/
-
 # Create default state directory.
 RUN mkdir -p /root/shadowbox/persisted-state
 
-COPY src/shadowbox/docker/cmd.sh /
+# Install shadowbox.
+WORKDIR /opt/outline-server
 
+# The shadowbox build directory has the following structure:
+#   - app/          (bundled node app)
+#   - bin/          (binary dependencies)
+#   - package.json  (shadowbox package.json)
+COPY --from=build /build/shadowbox/ .
+COPY --from=ss_builder /app/outline-ss-server/outline-ss-server ./bin/outline-ss-server
+COPY --from=prombuilder /app/prometheus/prometheus ./bin/prometheus
+
+COPY src/shadowbox/docker/cmd.sh /
 CMD /cmd.sh
