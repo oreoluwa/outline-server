@@ -46,11 +46,9 @@ RUN go mod vendor
 RUN go build -o /app/prometheus ./cmd/prometheus
 
 
-ARG NODE_IMAGE={{ .RuntimeImage }}
-
 # Multi-stage build: use a build image to prevent bloating the shadowbox image with dependencies.
 # Run `yarn` and build inside the container to package the right dependencies for the image.
-FROM ${NODE_IMAGE} AS build
+FROM {{ .RuntimeImage }} AS build
 
 RUN apk add --no-cache --upgrade bash
 WORKDIR /
@@ -68,7 +66,7 @@ COPY third_party third_party
 RUN ROOT_DIR=/ yarn do shadowbox/server/build
 
 # shadowbox image
-FROM ${NODE_IMAGE}
+FROM {{ .RuntimeImage }}
 
 # Save metadata on the software versions we are using.
 LABEL shadowbox.node_version=12.16.3
