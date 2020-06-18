@@ -189,7 +189,7 @@ class DigitaloceanServer extends ShadowboxServer implements server.ManagedServer
       const certificateFingerprint = this.getCertificateFingerprint();
       const apiAddress = this.getManagementApiAddress();
       // Loaded both the cert and url without exceptions, they can be set.
-      whitelistCertificate(certificateFingerprint);
+      trustCertificate(certificateFingerprint);
       this.setManagementApiUrl(apiAddress);
       return true;
     } catch (e) {
@@ -344,7 +344,7 @@ export class DigitaloceanServerRepository implements server.ManagedServerReposit
 
   constructor(
       private digitalOcean: DigitalOceanSession, private image: string, private metricsUrl: string,
-      private sentryApiUrl: string, private debugMode: boolean) {}
+      private sentryApiUrl: string|undefined, private debugMode: boolean) {}
 
   // Return a map of regions that are available and support our target machine size.
   getRegionMap(): Promise<Readonly<server.RegionMap>> {
