@@ -1,12 +1,11 @@
 language: node_js
 
 node_js:
-  - "10"
+  - "12"
 
 cache:
   yarn: true
   directories:
-    - $HOME/.cache/bower
     - $HOME/.cache/electron
     - $HOME/.cache/electron-builder
 
@@ -14,33 +13,42 @@ before_install:
   # https://docs.travis-ci.com/user/languages/javascript-with-nodejs#Travis-CI-supports-yarn
   - curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 1.12.3
   - export PATH="$HOME/.yarn/bin:$PATH"
+  # Install latest Docker for BuildKit support if running on linux. See https://docs.travis-ci.com/user/docker/
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+      sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+      sudo apt-get update
+      sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+    fi;
 
 stages:
-  - name: update latest
+  - name: "Server Daily Release"
     if: type = cron
-  - name: build and unit test
+  - name: Test
     if: type != cron
-  - name: integration test
-    if: type != cron
-  - name: deploy
-    if: (type != cron) AND (branch = shadowbox/deploy)
-
+  - name: "deploy"
+    if: tag =~ ^server-
+  - name: "Manager Release"
+    if: tag =~ ^v[0-9]
 
 # Stages with the same name define multiple jobs which run in parallel.
-# To make it more apparent in the Travis UI exactly what each job is
-# doing, we add a descriptive environment variable.
 jobs:
   include:
-    - stage: update latest
-      script: ./push.sh
+    - stage: "Server Daily Release"
+      script:
+        - RELEASE_NAME=server-$(date -I)
+        - curl --data '{"tag_name":"'$RELEASE_NAME'","name":"'$RELEASE_NAME'","prerelease":true}' https://api.github.com/repos/Jigsaw-Code/outline-server/releases?access_token=$CI_USER_TOKEN
 
     # Ideally, we would split this stage in some way, e.g. by component or by
     # build/test commands, to make it clearer in the Travis UI exactly which
     # command failed. However, since each stage incurs a significantly start-up
     # cost, we combine test and build commands for all components into one fast
     # stage.
-    - stage: build and unit test
+    - stage: Test
+      name: Unit Tests
       script:
+        - yarn lint
         - yarn do metrics_server/build
         - yarn do sentry_webhook/build
         - yarn do shadowbox/server/build
@@ -50,35 +58,89 @@ jobs:
         - yarn do server_manager/web_app/build
         - yarn do server_manager/web_app/test
 
-    - stage: integration test
+    - stage: Test
+      name: Server Integration Test
       sudo: required
       services: docker
       script:
         # https://docs.travis-ci.com/user/docker/
         - |
           sudo rm -f /usr/local/bin/docker-compose
-          curl -L https://github.com/docker/compose/releases/download/1.17.1/docker-compose-$(uname -s)-$(uname -m) > docker-compose
+          curl -L https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m) > docker-compose
           chmod +x docker-compose
           sudo mv docker-compose /usr/local/bin
-        - yarn do shadowbox/integration_test/run
+        - yarn do shadowbox/docker/build && cd src/shadowbox/integration_test && ./test.sh
 
     - stage: deploy
-      env:
-        - DESC=shadowbox docker image with multi-archs
+      name: Server Docker Image
       sudo: required
       services: docker
       script:
-        # https://github.com/ldez/seihon is used to manage multi-arch deployment
-        - |
-          curl -sfL https://raw.githubusercontent.com/ldez/seihon/7d38218cc397499330219dd76a39f26e2b545f81/godownloader.sh | bash -s -- -b .
-          chmod +x seihon
-          sudo mv seihon /usr/local/bin
-        - docker run --rm --privileged hypriot/qemu-register
-        - yarn do shadowbox/server/build
-        - echo $DOCKER_PASSWORD | docker login -u="$DOCKER_USERNAME" --password-stdin
-        # skipping arm.v7 because the base docker image(node:8.15.0-alpine) doesn't have a arm.v7 manifest included,
-        # sh -c 'DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect node:8.15.0-alpine'
-        - seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8,amd64,386 -b node:12.16.1-alpine
+        - yarn do shadowbox/docker/build
+        - docker login quay.io -u="$QUAY_IO_USERNAME" -p="$QUAY_IO_PASSWORD"
+        - docker tag outline/shadowbox quay.io/outline/shadowbox:$TRAVIS_TAG
+        - docker push quay.io/outline/shadowbox:$TRAVIS_TAG
+        - docker tag outline/shadowbox quay.io/outline/shadowbox:daily
+        - docker push quay.io/outline/shadowbox:daily
+
+    - stage: deploy
+      name: Manager Linux
+      addons:
+        apt:
+          packages:
+          - rpm
+      script: yarn do server_manager/electron_app/package_linux
+
+    # https://www.electron.build/multi-platform-build
+    - stage: deploy
+      name: Manager Windows
+      sudo: required
+      services: docker
+      script:
+        - yarn do server_manager/electron_app/build
+        - docker pull electronuserland/builder:wine
+        - docker run --rm
+            -v ${PWD}:/project
+            -v ~/.cache/electron:/root/.cache/electron
+            -v ~/.cache/electron-builder:/root/.cache/electron-builder
+            electronuserland/builder:wine
+            /bin/bash -c "yarn do server_manager/electron_app/package_only_windows" || travis_terminate $?
+
+    - stage: deploy
+      name: Manager macOS
+      os: osx
+      script: yarn do server_manager/electron_app/package_macos
+
+    # Note that because we cannot currently sign Windows binaries on Travis,
+    # these must be manually built and uploaded to the releases page.
+    - stage: "Manager Release"
+      name: Manager Linux
+      addons:
+        apt:
+          packages:
+          - rpm
+      script: yarn do server_manager/electron_app/release_linux
+
+    - stage: "Manager Release"
+      os: osx
+      # electron-builder requires macOS >=10.13.6 for signing to work.
+      osx_image: xcode10.1
+      name: Manager macOS
+      script:
+        - openssl aes-256-cbc -K $encrypted_61a49da75942_key -iv $encrypted_61a49da75942_iv -in macos-signing-certificate.p12.enc -out macos-signing-certificate.p12 -d
+        - export CSC_LINK=$(pwd)/macos-signing-certificate.p12
+        # Must run yarn again due to the OS change, required for signing to work.
+        - yarn && yarn do server_manager/electron_app/release_macos
+
+deploy:
+  provider: releases
+  api_key:
+    secure: "0uQ8HgYBpzeXG+m/q6FUrcvQe+30YkbuGej/nT4mAj9VhX7Ft/5PdsB6lFiUjc/OnNLbaMdIHJj2MO5SDy55A4d5gC/LN4hcvwWKY+sRephyMnu3f0Nepy1bZbA1rud4MToSv7K3aD24f7AWNNiwz8f/CdvENt6fDu53GuPZLPUDR6TzMy1JBZ3jyLDpy7Cjue24B9XUaXWzBpwFD1TpeKJ37O5V655+VWWPuYWUY2or0N6Iohunhrp1IhQAM7Cw4zln94prXmdX9bux8OP6U73gnyvTf7eGG4SjzypqqCL7VzqzUmDqYm072t2jvTwtjWjUt0vTE4UfOituDBK8VXqIpa4GGk3HBbx40GEQxVXJNCJl48cZsmEPZB+w4mPgxO9EWA/SpBNloqJuvfbspczYgvrM1/p5169PcXScVF+6iV+EWUeMKrymXOmJ4LpjttCDCTg/3AfwHCbAD+4JuLLMETfWeeZQ/4w3HBwxRRUFyvryLHmshuCahJxICWeJMtxftkA3O8e9Kc6P6x/G0JKDrSLeNJcY4vyKwpe4R9uJWk0A5lAnklFKgSXNT394/TNXpuTXuarZD6VaJcx9ieBQNkzpmi9RoLTjdnigmYeTWdPFrhOP/0fJu05U3nyH0NpKscG0e3+kG0XTJOHhYSwp/UknZb4rfR+BmqSTGik="
+  file_glob: true
+  file: "build/server_manager/electron_app/static/dist/*.*"
+  skip_cleanup: true
+  on:
+    tags: true
 
 env:
   global:

@@ -2,10 +2,33 @@
 
 ## Running
 
-To run the Outline Manager:
+To run the Outline Manager Electron app:
 ```
 yarn do server_manager/electron_app/run
 ```
+
+To run the Outline Manager Electron app with a development build (code not minified):
+```
+BUILD_ENV=development yarn do server_manager/electron_app/run
+```
+
+## Development Server
+
+To run the Outline Manager as a web app on the browser and listen for changes:
+
+```
+yarn do server_manager/web_app/run
+```
+
+## Gallery Server for UI Development
+
+We have a server app to for quickly iterating on UI components.  To spin it up, run
+
+```
+yarn do server_manager/web_app/run_gallery
+```
+
+Changes to UI components will be hot reloaded into the gallery.
 
 ## Debug an existing binary
 
@@ -35,3 +58,13 @@ yarn do server_manager/electron_app/release
 ```
 
 This will perform a clean and reinstall all dependencies to make sure the build is not tainted.
+
+## Error reporting
+
+To enable error reporting through [Sentry](https://sentry.io/) for local builds, run:
+``` bash
+export SENTRY_DSN=[Sentry development API key]
+yarn do server_manager/electron_app/run
+```
+
+Release builds on CI are configured with a production Sentry API key.
