@@ -41,7 +41,7 @@ ENV GO111MODULE=on
 ENV GOOS={{ .GoOS }}
 ENV GOARCH={{ .GoARCH }}
 ENV GOARM={{ .GoARM }}
-RUN go mod init
+# RUN go mod init
 RUN go mod vendor
 RUN go build -o /app/prometheus ./cmd/prometheus
 
