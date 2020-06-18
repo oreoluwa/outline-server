@@ -23,13 +23,12 @@ jobs:
     - uses: actions/setup-node@v2-beta
       with:
         node-version: '12'
-    # - name: Build docker image
-    #   run: yarn shadowbox/server/build
-    - name: Login to DockerHub Registry
+    - name: Login to Docker Registry
       run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
     - name: seihon build and publish docker image
       env:
         DOCKER_BUILDKIT: 1
       run: |
+        readonly IMAGE_TAG="daily-$(date +%Y-%m-%d)"
         readonly NODE_IMAGE="node:12.16.3-alpine"
-        seihon publish -v "${TRAVIS_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8,amd64,386 -b ${NODE_IMAGE:-12.16.3-alpine}
+        seihon publish -v "${IMAGE_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8,amd64,386 -b ${NODE_IMAGE:-12.16.3-alpine}
