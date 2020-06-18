@@ -28,7 +28,6 @@ ENV GOARCH={{ .GoARCH }}
 ENV GOARM={{ .GoARM }}
 ENV CGO_ENABLED=0
 RUN go build -o /app/outline-ss-server
-RUN ls -al /app/outline-ss-server
 
 FROM golang:alpine AS prombuilder
 # Versions can be found at https://github.com/prometheus/prometheus/releases
@@ -45,7 +44,6 @@ ENV GOARM={{ .GoARM }}
 # RUN go mod init
 RUN go mod vendor
 RUN go build -o /app/prometheus ./cmd/prometheus
-RUN ls -al /app/prometheus
 
 
 # Multi-stage build: use a build image to prevent bloating the shadowbox image with dependencies.
@@ -98,9 +96,8 @@ WORKDIR /opt/outline-server
 #   - bin/          (binary dependencies)
 #   - package.json  (shadowbox package.json)
 COPY --from=build /build/shadowbox/ .
-RUN ls -al .
-COPY --from=ss_builder /app/outline-ss-server/outline-ss-server ./bin/outline-ss-server
-COPY --from=prombuilder /app/prometheus/prometheus ./bin/prometheus
+COPY --from=ss_builder /app/outline-ss-server ./bin/outline-ss-server
+COPY --from=prombuilder /app/prometheus ./bin/prometheus
 
 COPY src/shadowbox/docker/cmd.sh /
 CMD /cmd.sh
