@@ -21,11 +21,11 @@ jobs:
     - name: Register qemu
       run: docker run --rm --privileged hypriot/qemu-register
     - uses: borales/actions-yarn@v2.0.0
-        with:
-          cmd: install
+      with:
+        cmd: install
     - uses: borales/actions-yarn@v2.0.0
-        with:
-          cmd: do shadowbox/server/build
+      with:
+        cmd: do shadowbox/server/build
     - name: Login to DockerHub Registry
       run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
     - name: seihon build and publish docker image
