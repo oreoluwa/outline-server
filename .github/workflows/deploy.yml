@@ -9,6 +9,45 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/setup-node@v2-beta
+      with:
+        node-version: '12'
+    - uses: lots0logs/gh-action-get-changed-files@2.1.4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check that Dockerfile was changed
+      id: checkmajorchange
+      shell: python
+      run: |
+        import os
+        import json
+
+        file_path = os.environ['HOME'] + '/files.json'
+        with open(file_path) as json_file:
+          changes = json.load(json_file)
+          dockerfiles = []
+          for changed_file in changes:
+            if 'Dockerfile' in changed_file:
+              dockerfiles.append(changed_file)
+          print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+    - name: Notify of Dockerfile Changes
+      uses: dawidd6/action-send-mail@v2
+      if: contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
+      with:
+        server_address: smtp.sendgrid.net
+        server_port: 587
+        username: apikey
+        password: ${{secrets.SENDGRID_PASSWORD}}
+        subject: OutlineServer Dockerfile changed!
+        body: |
+          Hey,<br/>
+          There has been a change in the Dockerfile for <a href="https://github.com/Jigsaw-Code/outline-server">outline-server</a>.<br/>
+          Check it out and update the build process.<br/>
+          For reference, here are the Dockerfiles changed:<br/>
+          ${{ steps.checkmajorchange.outputs.dockerfilechanged }}<br/>
+        to: O <${{secrets.NOTIFICATION_EMAIL_ADDRESS}}>
+        from: ${{secrets.NOTIFICATION_SENDER_EMAIL_ADDRESS}}
+        content_type: text/html 
     - name: Checkout repo
       uses: actions/checkout@v2
     - name: Download Seihorn downloader
@@ -20,9 +59,6 @@ jobs:
         chmod +x seihon
     - name: Register qemu
       run: docker run --rm --privileged hypriot/qemu-register
-    - uses: actions/setup-node@v2-beta
-      with:
-        node-version: '12'
     - name: Login to Docker Registry
       run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
     - name: seihon build and publish docker image
