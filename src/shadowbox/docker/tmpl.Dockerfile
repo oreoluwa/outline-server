@@ -41,16 +41,14 @@ ENV GO111MODULE=on
 ENV GOOS={{ .GoOS }}
 ENV GOARCH={{ .GoARCH }}
 ENV GOARM={{ .GoARM }}
-RUN go mod init
+# RUN go mod init
 RUN go mod vendor
 RUN go build -o /app/prometheus ./cmd/prometheus
 
 
-ARG NODE_IMAGE={{ .RuntimeImage }}
-
 # Multi-stage build: use a build image to prevent bloating the shadowbox image with dependencies.
 # Run `yarn` and build inside the container to package the right dependencies for the image.
-FROM ${NODE_IMAGE} AS build
+FROM {{ .RuntimeImage }} AS build
 
 RUN apk add --no-cache --upgrade bash
 WORKDIR /
@@ -68,7 +66,7 @@ COPY third_party third_party
 RUN ROOT_DIR=/ yarn do shadowbox/server/build
 
 # shadowbox image
-FROM ${NODE_IMAGE}
+FROM {{ .RuntimeImage }}
 
 # Save metadata on the software versions we are using.
 LABEL shadowbox.node_version=12.16.3
@@ -98,8 +96,8 @@ WORKDIR /opt/outline-server
 #   - bin/          (binary dependencies)
 #   - package.json  (shadowbox package.json)
 COPY --from=build /build/shadowbox/ .
-COPY --from=ss_builder /app/outline-ss-server/outline-ss-server ./bin/outline-ss-server
-COPY --from=prombuilder /app/prometheus/prometheus ./bin/prometheus
+COPY --from=ss_builder /app/outline-ss-server ./bin/outline-ss-server
+COPY --from=prombuilder /app/prometheus ./bin/prometheus
 
 COPY src/shadowbox/docker/cmd.sh /
 CMD /cmd.sh
