@@ -30,24 +30,6 @@ jobs:
             if 'Dockerfile' in changed_file:
               dockerfiles.append(changed_file)
           print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
-    - name: Notify of Dockerfile Changes
-      uses: dawidd6/action-send-mail@v2
-      if: contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
-      with:
-        server_address: smtp.sendgrid.net
-        server_port: 587
-        username: apikey
-        password: ${{secrets.SENDGRID_PASSWORD}}
-        subject: OutlineServer Dockerfile changed!
-        body: |
-          Hey,<br/>
-          There has been a change in the Dockerfile for <a href="https://github.com/Jigsaw-Code/outline-server">outline-server</a>.<br/>
-          Check it out and update the build process.<br/>
-          For reference, here are the Dockerfiles changed:<br/>
-          ${{ steps.checkmajorchange.outputs.dockerfilechanged }}<br/>
-        to: O <${{secrets.NOTIFICATION_EMAIL_ADDRESS}}>
-        from: ${{secrets.NOTIFICATION_SENDER_EMAIL_ADDRESS}}
-        content_type: text/html 
     - name: Checkout repo
       uses: actions/checkout@v2
     - name: Download Seihorn downloader

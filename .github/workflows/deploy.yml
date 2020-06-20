@@ -45,7 +45,7 @@ jobs:
           Check it out and update the build process.<br/>
           For reference, here are the Dockerfiles changed:<br/>
           ${{ steps.checkmajorchange.outputs.dockerfilechanged }}<br/>
-        to: O <${{secrets.NOTIFICATION_EMAIL_ADDRESS}}>
+        to: ${{secrets.NOTIFICATION_EMAIL_ADDRESS}}
         from: ${{secrets.NOTIFICATION_SENDER_EMAIL_ADDRESS}}
         content_type: text/html 
     - name: Checkout repo
