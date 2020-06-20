@@ -17,7 +17,7 @@ ARG SS_VERSION=1.1.5
 
 FROM golang:alpine AS ss_builder
 # add git so we can build outline-ss-server from source
-RUN apk add --update git && rm -rf /var/cache/apk/*
+RUN apk add --update upx git && rm -rf /var/cache/apk/*
 WORKDIR /tmp
 ARG SS_VERSION
 RUN git clone --branch "v${SS_VERSION}" https://github.com/Jigsaw-Code/outline-ss-server --single-branch
@@ -27,13 +27,14 @@ ENV GOOS={{ .GoOS }}
 ENV GOARCH={{ .GoARCH }}
 ENV GOARM={{ .GoARM }}
 ENV CGO_ENABLED=0
-RUN go build -o /app/outline-ss-server
+RUN go build -ldflags="-s -w" -o /app/outline-ss-server
+RUN upx /app/outline-ss-server
 
 FROM golang:alpine AS prombuilder
 # Versions can be found at https://github.com/prometheus/prometheus/releases
 ARG PM_VERSION=2.18.1
 # add git so we can build the prometheus version from source
-RUN apk add --update git && rm -rf /var/cache/apk/*
+RUN apk add --update upx git && rm -rf /var/cache/apk/*
 WORKDIR /tmp
 RUN git clone --branch "v${PM_VERSION}" https://github.com/prometheus/prometheus --single-branch
 WORKDIR /tmp/prometheus
@@ -43,7 +44,8 @@ ENV GOARCH={{ .GoARCH }}
 ENV GOARM={{ .GoARM }}
 # RUN go mod init
 RUN go mod vendor
-RUN go build -o /app/prometheus ./cmd/prometheus
+RUN go build -ldflags="-s -w" -o /app/prometheus ./cmd/prometheus
+RUN upx /app/prometheus
 
 
 # Multi-stage build: use a build image to prevent bloating the shadowbox image with dependencies.
