@@ -12,7 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: GitHub Sync to Upstream Repository
-      uses: arash2060/github-repo-sync-upstream@v0.0.1
+      uses: arash2060/github-repo-sync-upstream@9c7268e
       with:
         source_repo: https://github.com/Jigsaw-Code/outline-server.git
         source_branch: master
