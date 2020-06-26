@@ -17,3 +17,6 @@ jobs:
         source_branch: master
         destination_branch: oreoluwa/experimental
         strategy: merge
+      env:
+        FORCE_PUSH: "false"
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
