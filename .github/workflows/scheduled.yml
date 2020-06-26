@@ -13,13 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     # timeout-minutes: 3
     steps:
-    - uses: actions/checkout@v2
+    # - uses: actions/checkout@v2
     - name: GitHub Sync to Upstream Repository
-      uses: mheene/sync-upstream-repo@v0.1.2
+      uses: oreoluwa/github-repo-sync-upstream@bf4f4c5
       with:
-        upstream_repo: https://github.com/Jigsaw-Code/outline-server.git
+        source_repo: https://github.com/Jigsaw-Code/outline-server.git
+        source_branch: master
+        destination_branch: master
+        strategy: merge
       env:
-        GITHUB_REPOSITORY_URL: oreoluwa/outline-server.git
+        FORCE_PUSH: "false"
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
