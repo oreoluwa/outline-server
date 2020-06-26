@@ -22,11 +22,11 @@ jobs:
         strategy: merge
       env:
         FORCE_PUSH: "false"
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - uses: actions/checkout@v2        
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
+        directory: work
         github_token: ${{ secrets.GITHUB_TOKEN }}
         branch: shadowbox/deploy
         force: true
