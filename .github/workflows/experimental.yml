@@ -1,6 +1,8 @@
 name: "Experimental Deploy"
 
 on:
+  schedule:
+  - cron: "0 */5 * * *"
   push:
     branches:
       - oreoluwa/experimental
