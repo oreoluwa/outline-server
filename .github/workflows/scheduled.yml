@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     # timeout-minutes: 3
     steps:
-    # - uses: actions/checkout@v2
     - name: GitHub Sync to Upstream Repository
       uses: oreoluwa/github-repo-sync-upstream@bf4f4c5
       with:
@@ -24,6 +23,7 @@ jobs:
       env:
         FORCE_PUSH: "false"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2        
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
