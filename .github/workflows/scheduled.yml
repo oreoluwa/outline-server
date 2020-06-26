@@ -19,7 +19,7 @@ jobs:
       with:
         upstream_repo: https://github.com/Jigsaw-Code/outline-server.git
       env:
-        GITHUB_REPOSITORY_URL: oreoluwa/outline-server
+        GITHUB_REPOSITORY_URL: oreoluwa/outline-server.git
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
