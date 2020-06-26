@@ -3,7 +3,10 @@ name: CI
 on:
   schedule:
   - cron: "0 0 * * *"
-
+  push:
+    branches:
+      - master
+      
 jobs:
   scheduled:
     name: build
@@ -17,7 +20,7 @@ jobs:
         source_repo: https://github.com/Jigsaw-Code/outline-server.git
         source_branch: master
         destination_branch: master
-        strategy: merge
+        strategy: rebase
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
