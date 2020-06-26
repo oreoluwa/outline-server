@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - master
-      
+
 jobs:
   scheduled:
     name: build
@@ -15,12 +15,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: GitHub Sync to Upstream Repository
-      uses: oreoluwa/github-repo-sync-upstream@1d9f00f
+      uses: mheene/sync-upstream-repo@v0.1.2
       with:
-        source_repo: https://github.com/Jigsaw-Code/outline-server.git
-        source_branch: master
-        destination_branch: master
-        strategy: rebase
+        upstream_repo: https://github.com/Jigsaw-Code/outline-server.git
+      env:
+        GITHUB_REPOSITORY_URL: oreoluwa/outline-server
     - name: Push newest changes to deploy branch
       uses: ad-m/github-push-action@master
       with:
