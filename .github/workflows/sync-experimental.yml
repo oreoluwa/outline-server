@@ -19,4 +19,4 @@ jobs:
         strategy: merge
       env:
         FORCE_PUSH: "false"
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+        GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}    

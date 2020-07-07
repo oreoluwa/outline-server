@@ -24,6 +24,6 @@ jobs:
       uses: ad-m/github-push-action@master
       with:
         directory: work
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ secrets.PUSH_TOKEN }}
         branch: shadowbox/deploy
         force: true

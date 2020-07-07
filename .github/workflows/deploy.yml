@@ -14,10 +14,13 @@ jobs:
     - uses: actions/setup-node@v2-beta
       with:
         node-version: '12'
+    - name: Checkout repo
+      uses: actions/checkout@v2        
     - uses: lots0logs/gh-action-get-changed-files@2.1.4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Check that Dockerfile was changed
+      if: github.event_name == 'push'
       id: checkmajorchange
       shell: python
       run: |
@@ -50,8 +53,6 @@ jobs:
         to: ${{secrets.NOTIFICATION_EMAIL_ADDRESS}}
         from: ${{secrets.NOTIFICATION_SENDER_EMAIL_ADDRESS}}
         content_type: text/html 
-    - name: Checkout repo
-      uses: actions/checkout@v2
     - name: Download Seihorn downloader
       run: |
         mkdir -p $GITHUB_WORKSPACE/.bin/seihon
