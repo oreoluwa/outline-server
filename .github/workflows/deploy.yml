@@ -18,11 +18,12 @@ jobs:
       uses: actions/checkout@v2
     - uses: trilom/file-changes-action@v1.2.3
       id: get-file-changes
+      if: contains(['push', 'pull_request'], github.event_name)
       with:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           githubRepo: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
-      if: github.event_name == 'push'
+      if: contains(['push', 'pull_request'], github.event_name)
       id: checkmajorchange
       shell: python
       run: |
@@ -39,7 +40,7 @@ jobs:
           print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
     - name: Notify of Dockerfile Changes
       uses: dawidd6/action-send-mail@v2
-      if: contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
+      if: contains(['push', 'pull_request'], github.event_name) || contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
       with:
         server_address: smtp.sendgrid.net
         server_port: 587

@@ -17,12 +17,14 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v2
     - uses: trilom/file-changes-action@v1.2.3
+      if: contains(['push', 'pull_request'], github.event_name)
       id: get-file-changes
       with:
         githubToken: ${{ secrets.GITHUB_TOKEN }}
         githubRepo: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
       id: checkmajorchange
+      if: contains(['push', 'pull_request'], github.event_name)
       shell: python
       run: |
         import os
