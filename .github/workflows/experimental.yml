@@ -19,6 +19,8 @@ jobs:
     - uses: lots0logs/gh-action-get-changed-files@2.1.4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        GITHUB_REPOSITORY: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
       id: checkmajorchange
       shell: python
