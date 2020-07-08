@@ -16,11 +16,11 @@ jobs:
         node-version: '12'
     - name: Checkout repo
       uses: actions/checkout@v2
-    - uses: lots0logs/gh-action-get-changed-files@2.1.4
+    - uses: trilom/file-changes-action@v1.2.3
+      id: get-file-changes
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-      env:
-        GITHUB_REPOSITORY: oreoluwa/outline-server
+        githubToken: ${{ secrets.GITHUB_TOKEN }}
+        githubRepo: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
       id: checkmajorchange
       shell: python

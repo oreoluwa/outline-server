@@ -15,10 +15,12 @@ jobs:
       with:
         node-version: '12'
     - name: Checkout repo
-      uses: actions/checkout@v2        
-    - uses: lots0logs/gh-action-get-changed-files@2.1.4
+      uses: actions/checkout@v2
+    - uses: trilom/file-changes-action@v1.2.3
+      id: get-file-changes
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          githubRepo: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
       if: github.event_name == 'push'
       id: checkmajorchange
