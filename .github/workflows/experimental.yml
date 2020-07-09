@@ -39,7 +39,7 @@ jobs:
               if 'Dockerfile' in changed_file:
                 dockerfiles.append(changed_file)
             print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
-        except FileNotFoundError:
+        except:
           print('File {} not found'.format(file_path))
     - name: Download Seihorn downloader
       run: |
