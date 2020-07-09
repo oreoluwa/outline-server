@@ -77,12 +77,3 @@ jobs:
         readonly IMAGE_TAG="daily-$(date +%Y-%m-%d)"
         readonly NODE_IMAGE="node:12.16.3-alpine"
         seihon publish -v "${IMAGE_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8,amd64,386 -b ${NODE_IMAGE:-12.16.3-alpine}
-
-
-
-        try:
-     with open( "a.txt" ) as f :
-         print(f.readlines())
- except Exception:
-     print('not found')
-     #continue if file not found
