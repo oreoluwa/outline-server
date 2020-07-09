@@ -31,13 +31,16 @@ jobs:
         import json
 
         file_path = os.environ['HOME'] + '/files.json'
-        with open(file_path) as json_file:
-          changes = json.load(json_file)
-          dockerfiles = []
-          for changed_file in changes:
-            if 'Dockerfile' in changed_file:
-              dockerfiles.append(changed_file)
-          print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+        try:
+          with open(file_path) as json_file:
+            changes = json.load(json_file)
+            dockerfiles = []
+            for changed_file in changes:
+              if 'Dockerfile' in changed_file:
+                dockerfiles.append(changed_file)
+            print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+        except FileNotFoundError:
+          print('File {} not found'.format(file_path))
     - name: Notify of Dockerfile Changes
       uses: dawidd6/action-send-mail@v2
       if: contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
@@ -74,3 +77,12 @@ jobs:
         readonly IMAGE_TAG="daily-$(date +%Y-%m-%d)"
         readonly NODE_IMAGE="node:12.16.3-alpine"
         seihon publish -v "${IMAGE_TAG}" -v "daily" -i oreoluwa/shadowbox --dry-run=false --template src/shadowbox/docker/tmpl.Dockerfile --targets=arm.v6,arm.v7,arm.v8,amd64,386 -b ${NODE_IMAGE:-12.16.3-alpine}
+
+
+
+        try:
+     with open( "a.txt" ) as f :
+         print(f.readlines())
+ except Exception:
+     print('not found')
+     #continue if file not found

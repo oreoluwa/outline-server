@@ -31,13 +31,16 @@ jobs:
         import json
 
         file_path = os.environ['HOME'] + '/files.json'
-        with open(file_path) as json_file:
-          changes = json.load(json_file)
-          dockerfiles = []
-          for changed_file in changes:
-            if 'Dockerfile' in changed_file:
-              dockerfiles.append(changed_file)
-          print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+        try:
+          with open(file_path) as json_file:
+            changes = json.load(json_file)
+            dockerfiles = []
+            for changed_file in changes:
+              if 'Dockerfile' in changed_file:
+                dockerfiles.append(changed_file)
+            print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+        except FileNotFoundError:
+          print('File {} not found'.format(file_path))
     - name: Download Seihorn downloader
       run: |
         mkdir -p $GITHUB_WORKSPACE/.bin/seihon
