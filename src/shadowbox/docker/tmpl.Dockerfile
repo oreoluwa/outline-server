@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Versions can be found at https://github.com/Jigsaw-Code/outline-ss-server/releases
-ARG SS_VERSION=1.1.7
+ARG SS_VERSION=1.2.1
 
 FROM golang:alpine AS ss_builder
 # add git so we can build outline-ss-server from source
