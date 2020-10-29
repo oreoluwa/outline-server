@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Versions can be found at https://github.com/Jigsaw-Code/outline-ss-server/releases
-ARG SS_VERSION=1.2.1
+ARG SS_VERSION=1.3.1
 
 FROM golang:alpine AS ss_builder
 # add git so we can build outline-ss-server from source
@@ -69,11 +69,9 @@ RUN ROOT_DIR=/ yarn do shadowbox/server/build
 
 # shadowbox image
 FROM {{ .RuntimeImage }}
-ARG SS_VERSION
+
 # Save metadata on the software versions we are using.
 LABEL shadowbox.node_version=12.16.3
-# Keep in sync with version in third_party/outline-ss-server
-LABEL shadowbox.outline-ss-server_version="${SS_VERSION}"
 
 ARG GITHUB_RELEASE
 LABEL shadowbox.github.release="${GITHUB_RELEASE}"
