@@ -30,32 +30,38 @@ jobs:
         import os
         import json
 
+        watched_file_patterns = [
+          'third_party/outline-ss-server/METADATA',
+          'third_party/prometheus/METADATA',
+          'Dockerfile'
+        ]
         file_path = os.environ['HOME'] + '/files.json'
         try:
           with open(file_path) as json_file:
             changes = json.load(json_file)
-            dockerfiles = []
+            changed_files = []
             for changed_file in changes:
-              if 'Dockerfile' in changed_file:
-                dockerfiles.append(changed_file)
-            print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+              for file in watched_file_patterns:
+                if file in changed_file:
+                  changed_files.append(changed_file)
+            print("::set-output name=fileschanged::{}".format(",".join(changed_files)))
         except:
           print('File {} not found'.format(file_path))
-    - name: Notify of Dockerfile Changes
+    - name: Notify of Watched File Changes
       uses: dawidd6/action-send-mail@v2
-      if: contains(steps.checkmajorchange.outputs.dockerfilechanged, 'Dockerfile')
+      if: contains(steps.checkmajorchange.outputs.fileschanged, 'Dockerfile') || contains(steps.checkmajorchange.outputs.fileschanged, 'METADATA')
       with:
         server_address: smtp.sendgrid.net
         server_port: 587
         username: apikey
         password: ${{secrets.SENDGRID_PASSWORD}}
-        subject: OutlineServer Dockerfile changed!
+        subject: OutlineServer Build file changed!
         body: |
           Hey,<br/>
-          There has been a change in the Dockerfile for <a href="https://github.com/Jigsaw-Code/outline-server">outline-server</a>.<br/>
+          There has been a change in the build dependecies for <a href="https://github.com/Jigsaw-Code/outline-server">outline-server</a>.<br/>
           Check it out and update the build process.<br/>
-          For reference, here are the Dockerfiles changed:<br/>
-          ${{ steps.checkmajorchange.outputs.dockerfilechanged }}<br/>
+          For reference, here are the files changed:<br/>
+          ${{ steps.checkmajorchange.outputs.fileschanged }}<br/>
         to: ${{secrets.NOTIFICATION_EMAIL_ADDRESS}}
         from: ${{secrets.NOTIFICATION_SENDER_EMAIL_ADDRESS}}
         content_type: text/html 

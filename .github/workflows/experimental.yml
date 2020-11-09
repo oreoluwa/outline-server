@@ -30,15 +30,17 @@ jobs:
         import os
         import json
 
+        watched_file_patterns = ['third_party/outline-ss-server/METADATA', 'third_party/prometheus/METADATA', 'Dockerfile']
         file_path = os.environ['HOME'] + '/files.json'
         try:
           with open(file_path) as json_file:
             changes = json.load(json_file)
-            dockerfiles = []
+            changed_files = []
             for changed_file in changes:
-              if 'Dockerfile' in changed_file:
-                dockerfiles.append(changed_file)
-            print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
+              for file in watched_file_patterns:
+                if file in changed_file:
+                  changed_files.append(changed_file)
+            print("::set-output name=fileschanged::{}".format(",".join(changed_files)))
         except:
           print('File {} not found'.format(file_path))
     - name: Download Seihorn downloader
