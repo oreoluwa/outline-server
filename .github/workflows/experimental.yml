@@ -48,8 +48,8 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/.bin/seihon
         cd $GITHUB_WORKSPACE/.bin/seihon
         curl -sfL https://raw.githubusercontent.com/ldez/seihon/master/godownloader.sh | bash -s -- -b .
-        echo "::add-path::$GITHUB_WORKSPACE/.bin/seihon"
         chmod +x seihon
+        echo "$GITHUB_WORKSPACE/.bin/seihon" >> $GITHUB_PATH
     - name: Register qemu
       run: docker run --rm --privileged hypriot/qemu-register
     - name: Login to Docker Registry
