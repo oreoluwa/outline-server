@@ -1,20 +1,22 @@
 name: Experimental
 
 on:
-  schedule:
-  - cron: "0 */5 * * *"
+  push:
+    branches:
+      - master
 
 jobs:
   scheduled:
     name: build
     runs-on: ubuntu-latest
-    # timeout-minutes: 3
     steps:
-    - uses: actions/checkout@v2
     - name: GitHub Sync to Upstream Repository
-      uses: arash2060/github-repo-sync-upstream@9c7268e
+      uses: oreoluwa/github-repo-sync-upstream@bf4f4c5
       with:
         source_repo: https://github.com/Jigsaw-Code/outline-server.git
         source_branch: master
         destination_branch: oreoluwa/experimental
         strategy: merge
+      env:
+        FORCE_PUSH: "false"
+        GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}    

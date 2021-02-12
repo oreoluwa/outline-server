@@ -1,6 +1,8 @@
 name: "Experimental Deploy"
 
 on:
+  schedule:
+  - cron: "0 */5 * * *"
   push:
     branches:
       - oreoluwa/experimental
@@ -12,33 +14,42 @@ jobs:
     - uses: actions/setup-node@v2-beta
       with:
         node-version: '12'
-    - uses: lots0logs/gh-action-get-changed-files@2.1.4
+    - name: Checkout repo
+      uses: actions/checkout@v2
+    - uses: trilom/file-changes-action@v1.2.3
+      if: github.event_name == 'push' || github.event_name == 'pull_request'
+      id: get-file-changes
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        githubToken: ${{ secrets.GITHUB_TOKEN }}
+        githubRepo: oreoluwa/outline-server
     - name: Check that Dockerfile was changed
       id: checkmajorchange
+      # if: contains(['push', 'pull_request'], github.event_name)
       shell: python
       run: |
         import os
         import json
 
+        watched_file_patterns = ['third_party/outline-ss-server/METADATA', 'third_party/prometheus/METADATA', 'Dockerfile']
         file_path = os.environ['HOME'] + '/files.json'
-        with open(file_path) as json_file:
-          changes = json.load(json_file)
-          dockerfiles = []
-          for changed_file in changes:
-            if 'Dockerfile' in changed_file:
-              dockerfiles.append(changed_file)
-          print("::set-output name=dockerfilechanged::{}".format(",".join(dockerfiles)))
-    - name: Checkout repo
-      uses: actions/checkout@v2
+        try:
+          with open(file_path) as json_file:
+            changes = json.load(json_file)
+            changed_files = []
+            for changed_file in changes:
+              for file in watched_file_patterns:
+                if file in changed_file:
+                  changed_files.append(changed_file)
+            print("::set-output name=fileschanged::{}".format(",".join(changed_files)))
+        except:
+          print('File {} not found'.format(file_path))
     - name: Download Seihorn downloader
       run: |
         mkdir -p $GITHUB_WORKSPACE/.bin/seihon
         cd $GITHUB_WORKSPACE/.bin/seihon
         curl -sfL https://raw.githubusercontent.com/ldez/seihon/master/godownloader.sh | bash -s -- -b .
-        echo "::add-path::$GITHUB_WORKSPACE/.bin/seihon"
         chmod +x seihon
+        echo "$GITHUB_WORKSPACE/.bin/seihon" >> $GITHUB_PATH
     - name: Register qemu
       run: docker run --rm --privileged hypriot/qemu-register
     - name: Login to Docker Registry
