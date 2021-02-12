@@ -13,7 +13,10 @@
 // limitations under the License.
 
 export interface Server {
-  // Get the server's name for display.
+  // Gets the server ID.
+  getId(): string;
+
+  // Gets the server's name for display.
   getName(): string;
 
   // Gets the version of the shadowbox binary the server is running
@@ -22,11 +25,11 @@ export interface Server {
   // Updates the server name.
   setName(name: string): Promise<void>;
 
-  // List the access keys for this server, including the admin.
+  // Lists the access keys for this server, including the admin.
   listAccessKeys(): Promise<AccessKey[]>;
 
   // Returns stats for bytes transferred across all access keys of this server.
-  getDataUsage(): Promise<DataUsageByAccessKey>;
+  getDataUsage(): Promise<BytesByAccessKey>;
 
   // Adds a new access key to this server.
   addAccessKey(): Promise<AccessKey>;
@@ -52,8 +55,8 @@ export interface Server {
   // Updates whether metrics are enabled.
   setMetricsEnabled(metricsEnabled: boolean): Promise<void>;
 
-  // Get the server's unique ID, used for metrics reporting.
-  getServerId(): string;
+  // Gets the ID used for metrics reporting.
+  getMetricsId(): string;
 
   // Checks if the server is healthy.
   isHealthy(): Promise<boolean>;
@@ -90,9 +93,7 @@ export interface ManualServer extends Server {
 // "magic" user experience, e.g. DigitalOcean.
 export interface ManagedServer extends Server {
   // Returns a promise that fulfills once installation is complete.
-  // If resetTimeout is true, this will reset the server state and might
-  // wait until the timeout occurs to reconnect to the server.
-  waitOnInstall(resetTimeout: boolean): Promise<void>;
+  waitOnInstall(): Promise<void>;
   // Returns server host object.
   getHost(): ManagedServerHost;
   // Returns true when installation is complete.
@@ -168,18 +169,7 @@ export interface AccessKey {
   accessUrl: string;
 }
 
-// Byte transfer stats for the past 30 days, including both inbound and outbound.
-// TODO: this is copied at src/shadowbox/model/metrics.ts.  Both copies should
-// be kept in sync, until we can find a way to share code between the web_app
-// and shadowbox.
-export interface DataUsageByAccessKey {
-  // The accessKeyId should be of type AccessKeyId, however that results in the tsc
-  // error TS1023: An index signature parameter type must be 'string' or 'number'.
-  // See https://github.com/Microsoft/TypeScript/issues/2491
-  // TODO: this still says "UserId", changing to "AccessKeyId" will require
-  // a change on the shadowbox server.
-  bytesTransferredByUserId: {[accessKeyId: string]: number};
-}
+export type BytesByAccessKey = Map<AccessKeyId, number>;
 
 // Data transfer allowance, measured in bytes.
 // NOTE: Must be kept in sync with the definition in src/shadowbox/access_key.ts.

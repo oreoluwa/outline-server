@@ -21,7 +21,6 @@ import {getSentryApiUrl} from '../infrastructure/sentry';
 import {App} from './app';
 import {DigitalOceanTokenManager} from './digitalocean_oauth';
 import * as digitalocean_server from './digitalocean_server';
-import {DisplayServerRepository} from './display_server';
 import {ManualServerRepository} from './manual_server';
 import {AppRoot} from './ui_components/app-root.js';
 
@@ -116,6 +115,7 @@ document.addEventListener('WebComponentsReady', () => {
   // NOTE: this cast is safe and allows us to leverage Polymer typings since we haven't migrated to
   // Polymer 3, which adds typescript support.
   const appRoot = document.getElementById('appRoot') as unknown as AppRoot;
+  appRoot.language = language.string();
 
   const filteredLanguageDefs = Object.values(SUPPORTED_LANGUAGES);
   appRoot.supportedLanguages = sortLanguageDefsByName(filteredLanguageDefs);
@@ -123,7 +123,7 @@ document.addEventListener('WebComponentsReady', () => {
   new App(
       appRoot, version, digitalocean_api.createDigitalOceanSession,
       digitalOceanServerRepositoryFactory, new ManualServerRepository('manualServers'),
-      new DisplayServerRepository(), new DigitalOceanTokenManager())
+      new DigitalOceanTokenManager())
       .start();
 });
 

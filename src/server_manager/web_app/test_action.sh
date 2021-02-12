@@ -1,4 +1,6 @@
-# Copyright 2018 The Outline Authors
+#!/bin/bash -eu
+#
+# Copyright 2020 The Outline Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Pin to a known good signed image to avoid failures from the Docker notary service
-FROM gcr.io/distroless/python3@sha256:58087520b3c929fe77e1ef3fc95062dbe80bbda265e0e7966c4997c71a9636ea
-COPY index.html .
-ENTRYPOINT ["python", "-m", "http.server", "80"]
+yarn do server_manager/web_app/build_install_script
+karma start $ROOT_DIR/src/server_manager/web_app/karma.conf.js
