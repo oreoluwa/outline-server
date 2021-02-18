@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: GitHub Sync to Upstream Repository
-      uses: oreoluwa/github-repo-sync-upstream@bf4f4c5
+      uses: oreoluwa/github-repo-sync-upstream@bf4f4c548f9e4ca0049e79ed8a45a0620e911000
       with:
         source_repo: https://github.com/Jigsaw-Code/outline-server.git
         source_branch: master
