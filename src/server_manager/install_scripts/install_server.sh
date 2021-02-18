@@ -1,3 +1,5 @@
+#!/bin/bash
+#
 # Copyright 2018 The Outline Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,20 +67,20 @@ function log_command() {
 function log_error() {
   local -r ERROR_TEXT="\033[0;31m"  # red
   local -r NO_COLOR="\033[0m"
-  printf "${ERROR_TEXT}${1}${NO_COLOR}\n"
+  echo -e "${ERROR_TEXT}$1${NO_COLOR}"
   echo "${1}" >> ${FULL_LOG}
 }
 
 # Pretty prints text to stdout, and also writes to sentry log file if set.
 function log_start_step() {
   log_for_sentry "$@"
-  str="> $@"
+  str="> $*"
   lineLength=47
   echo -n "$str"
-  numDots=$(expr $lineLength - ${#str} - 1)
-  if [[ $numDots > 0 ]]; then
+  numDots=$(( lineLength - ${#str} - 1 ))
+  if (( numDots > 0 )); then
     echo -n " "
-    for i in $(seq 1 "$numDots"); do echo -n .; done
+    for _ in $(seq 1 "$numDots"); do echo -n .; done
   fi
   echo -n " "
 }
@@ -102,15 +104,12 @@ function confirm() {
   echo -n "> $1 [Y/n] "
   local RESPONSE
   read RESPONSE
-  RESPONSE=$(echo "$RESPONSE" | tr '[A-Z]' '[a-z]')
-  if [[ -z "$RESPONSE" ]] || [[ "$RESPONSE" = "y" ]] || [[ "$RESPONSE" = "yes" ]]; then
-    return 0
-  fi
-  return 1
+  RESPONSE=$(echo "$RESPONSE" | tr '[:upper:]' '[:lower:]') || return
+  [[ -z "$RESPONSE" || "$RESPONSE" == "y" || "$RESPONSE" == "yes" ]]
 }
 
 function command_exists {
-  command -v "$@" > /dev/null 2>&1
+  command -v "$@" &> /dev/null
 }
 
 function log_for_sentry() {
@@ -126,7 +125,7 @@ function verify_docker_installed() {
     return 0
   fi
   log_error "NOT INSTALLED"
-  if ! confirm "Would you like to install Docker? This will run 'curl -sS https://get.docker.com/ | sh'."; then
+  if ! confirm "Would you like to install Docker? This will run 'curl https://get.docker.com/ | sh'."; then
     exit 0
   fi
   if ! run_step "Installing Docker" install_docker; then
@@ -145,11 +144,17 @@ function verify_docker_running() {
     return 0
   elif [[ $STDERR_OUTPUT = *"Is the docker daemon running"* ]]; then
     start_docker
+    return
   fi
+  return "${RET}"
+}
+
+function fetch() {
+  curl --silent --show-error --fail "$@"
 }
 
 function install_docker() {
-  curl -sS https://get.docker.com/ | sh >&2
+  (fetch https://get.docker.com/ | sh) >&2
 }
 
 function start_docker() {
@@ -157,7 +162,7 @@ function start_docker() {
 }
 
 function docker_container_exists() {
-  docker ps | grep $1 >/dev/null 2>&1
+  docker ps | grep --quiet $1
 }
 
 function remove_shadowbox_container() {
@@ -176,7 +181,7 @@ function handle_docker_container_conflict() {
   local readonly CONTAINER_NAME=$1
   local readonly EXIT_ON_NEGATIVE_USER_RESPONSE=$2
   local PROMPT="The container name \"$CONTAINER_NAME\" is already in use by another container. This may happen when running this script multiple times."
-  if $EXIT_ON_NEGATIVE_USER_RESPONSE; then
+  if [[ "${EXIT_ON_NEGATIVE_USER_RESPONSE}" == 'true' ]]; then
     PROMPT="$PROMPT We will attempt to remove the existing container and restart it. Would you like to proceed?"
   else
     PROMPT="$PROMPT Would you like to replace this container? If you answer no, we will proceed with the remainder of the installation."
@@ -221,8 +226,8 @@ function get_random_port {
 
 function create_persisted_state_dir() {
   readonly STATE_DIR="$SHADOWBOX_DIR/persisted-state"
-  mkdir -p --mode=770 "${STATE_DIR}"
-  chmod g+s "${STATE_DIR}"
+  mkdir -p "${STATE_DIR}"
+  chmod ug+rwx,g+s,o-rwx "${STATE_DIR}"
 }
 
 # Generate a secret key for access to the Management API and store it in a tag.
@@ -258,9 +263,11 @@ function generate_certificate_fingerprint() {
   # Add a tag with the SHA-256 fingerprint of the certificate.
   # (Electron uses SHA-256 fingerprints: https://github.com/electron/electron/blob/9624bc140353b3771bd07c55371f6db65fd1b67e/atom/common/native_mate_converters/net_converter.cc#L60)
   # Example format: "SHA256 Fingerprint=BD:DB:C9:A4:39:5C:B3:4E:6E:CF:18:43:61:9F:07:A2:09:07:37:35:63:67"
-  local readonly CERT_OPENSSL_FINGERPRINT=$(openssl x509 -in "${SB_CERTIFICATE_FILE}" -noout -sha256 -fingerprint)
+  local CERT_OPENSSL_FINGERPRINT
+  CERT_OPENSSL_FINGERPRINT=$(openssl x509 -in "${SB_CERTIFICATE_FILE}" -noout -sha256 -fingerprint) || return
   # Example format: "BDDBC9A4395CB34E6ECF1843619F07A2090737356367"
-  local readonly CERT_HEX_FINGERPRINT=$(echo ${CERT_OPENSSL_FINGERPRINT#*=} | tr --delete :)
+  local CERT_HEX_FINGERPRINT
+  CERT_HEX_FINGERPRINT=$(echo ${CERT_OPENSSL_FINGERPRINT#*=} | tr --delete :) || return
   output_config "certSha256:$CERT_HEX_FINGERPRINT"
 }
 
@@ -284,8 +291,8 @@ function start_shadowbox() {
   # TODO(fortuna): Write API_PORT to config file,
   # rather than pass in the environment.
   declare -a docker_shadowbox_flags=(
-    --name shadowbox --restart=always --net=host
-    --label=com.centurylinklabs.watchtower.enable=true
+    --name shadowbox --restart always --net host
+    --label 'com.centurylinklabs.watchtower.enable=true'
     -v "${STATE_DIR}:${STATE_DIR}"
     -e "SB_STATE_DIR=${STATE_DIR}"
     -e "SB_API_PORT=${API_PORT}"
@@ -297,14 +304,11 @@ function start_shadowbox() {
   )
   # By itself, local messes up the return code.
   local readonly STDERR_OUTPUT
-  STDERR_OUTPUT=$(docker run -d "${docker_shadowbox_flags[@]}" ${SB_IMAGE} 2>&1 >/dev/null)
-  local readonly RET=$?
-  if [[ $RET -eq 0 ]]; then
-    return 0
-  fi
+  STDERR_OUTPUT=$(docker run -d "${docker_shadowbox_flags[@]}" ${SB_IMAGE} 2>&1 >/dev/null) && return
   log_error "FAILED"
   if docker_container_exists shadowbox; then
     handle_docker_container_conflict shadowbox true
+    return
   else
     log_error "$STDERR_OUTPUT"
     return 1
@@ -316,18 +320,15 @@ function start_watchtower() {
   # Set watchtower to refresh every 30 seconds if a custom SB_IMAGE is used (for
   # testing).  Otherwise refresh every hour.
   local WATCHTOWER_REFRESH_SECONDS="${WATCHTOWER_REFRESH_SECONDS:-3600}"
-  declare -a docker_watchtower_flags=(--name watchtower --restart=always)
-  docker_watchtower_flags+=(-v /var/run/docker.sock:/var/run/docker.sock)
+  declare -ar docker_watchtower_flags=(--name watchtower --restart always \
+      -v /var/run/docker.sock:/var/run/docker.sock)
   # By itself, local messes up the return code.
   local readonly STDERR_OUTPUT
-  STDERR_OUTPUT=$(docker run -d "${docker_watchtower_flags[@]}" containrrr/watchtower --cleanup --label-enable --tlsverify --interval $WATCHTOWER_REFRESH_SECONDS 2>&1 >/dev/null)
-  local readonly RET=$?
-  if [[ $RET -eq 0 ]]; then
-    return 0
-  fi
+  STDERR_OUTPUT=$(docker run -d "${docker_watchtower_flags[@]}" containrrr/watchtower --cleanup --label-enable --tlsverify --interval $WATCHTOWER_REFRESH_SECONDS 2>&1 >/dev/null) && return
   log_error "FAILED"
   if docker_container_exists watchtower; then
     handle_docker_container_conflict watchtower false
+    return
   else
     log_error "$STDERR_OUTPUT"
     return 1
@@ -338,11 +339,11 @@ function start_watchtower() {
 function wait_shadowbox() {
   # We use insecure connection because our threat model doesn't include localhost port
   # interception and our certificate doesn't have localhost as a subject alternative name
-  until curl --insecure -s "${LOCAL_API_URL}/access-keys" >/dev/null; do sleep 1; done
+  until fetch --insecure "${LOCAL_API_URL}/access-keys" >/dev/null; do sleep 1; done
 }
 
 function create_first_user() {
-  curl --insecure -X POST -s "${LOCAL_API_URL}/access-keys" >&2
+  fetch --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2
 }
 
 function output_config() {
@@ -355,13 +356,14 @@ function add_api_url_to_config() {
 
 function check_firewall() {
   # TODO(cohenjon) This is incorrect if access keys are using more than one port.
-  local readonly ACCESS_KEY_PORT=$(curl --insecure -s ${LOCAL_API_URL}/access-keys |
+  local -i ACCESS_KEY_PORT
+  ACCESS_KEY_PORT=$(fetch --insecure ${LOCAL_API_URL}/access-keys |
       docker exec -i shadowbox node -e '
           const fs = require("fs");
           const accessKeys = JSON.parse(fs.readFileSync(0, {encoding: "utf-8"}));
           console.log(accessKeys["accessKeys"][0]["port"]);
-      ')
-  if ! curl --max-time 5 --cacert "${SB_CERTIFICATE_FILE}" -s "${PUBLIC_API_URL}/access-keys" >/dev/null; then
+      ') || return
+  if ! fetch --max-time 5 --cacert "${SB_CERTIFICATE_FILE}" "${PUBLIC_API_URL}/access-keys" >/dev/null; then
      log_error "BLOCKED"
      FIREWALL_STATUS="\
 You won’t be able to access it externally, despite your server being correctly
@@ -390,8 +392,8 @@ install_shadowbox() {
 
   log_for_sentry "Creating Outline directory"
   export SHADOWBOX_DIR="${SHADOWBOX_DIR:-/opt/outline}"
-  mkdir -p --mode=770 $SHADOWBOX_DIR
-  chmod u+s $SHADOWBOX_DIR
+  mkdir -p $SHADOWBOX_DIR
+  chmod u+s,ug+rwx,o-rwx $SHADOWBOX_DIR
 
   log_for_sentry "Setting API port"
   API_PORT="${FLAGS_API_PORT}"
@@ -403,20 +405,22 @@ install_shadowbox() {
 
   log_for_sentry "Setting PUBLIC_HOSTNAME"
   # TODO(fortuna): Make sure this is IPv4
-  PUBLIC_HOSTNAME=${FLAGS_HOSTNAME:-${SB_PUBLIC_IP:-$(curl -4s https://ipinfo.io/ip)}}
+  PUBLIC_HOSTNAME=${FLAGS_HOSTNAME:-${SB_PUBLIC_IP:-$(fetch --ipv4 https://ipinfo.io/ip)}}
 
   if [[ -z $PUBLIC_HOSTNAME ]]; then
-    local readonly MSG="Failed to determine the server's IP address."
+    local readonly MSG="Failed to determine the server's IP address.  Try using --hostname <server IP>."
     log_error "$MSG"
     log_for_sentry "$MSG"
     exit 1
   fi
 
-  # If $ACCESS_CONFIG already exists, copy it to backup then clear it.
-  # Note we can't do "mv" here as do_install_server.sh may already be tailing
-  # this file.
+  # If $ACCESS_CONFIG is already populated, make a backup before clearing it.
   log_for_sentry "Initializing ACCESS_CONFIG"
-  [[ -f $ACCESS_CONFIG ]] && cp $ACCESS_CONFIG $ACCESS_CONFIG.bak && > $ACCESS_CONFIG
+  if [[ -s $ACCESS_CONFIG ]]; then
+    # Note we can't do "mv" here as do_install_server.sh may already be tailing
+    # this file.
+    cp $ACCESS_CONFIG $ACCESS_CONFIG.bak && true > $ACCESS_CONFIG
+  fi
 
   # Make a directory for persistent state
   run_step "Creating persistent state dir" create_persisted_state_dir
@@ -470,8 +474,8 @@ function is_valid_port() {
 }
 
 function parse_flags() {
+  local params
   params=$(getopt --longoptions hostname:,api-port:,keys-port: -n $0 -- $0 "$@")
-  [[ $? == 0 ]] || exit 1
   eval set -- $params
 
   while [[ "$#" > 0 ]]; do
