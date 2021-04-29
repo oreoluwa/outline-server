@@ -121,10 +121,14 @@
     "message": "Remove Server?",
     "description": "This string appears in a dialog that requests user confirmation for removing a server from the application. 'Remove' in this context does not imply server deletion."
   },
+  "data_limit": {
+    "message": "Data Limit",
+    "Description": "This string appears in various places related to the data transfer limit for a single access key."
+  },
   "data_limit_per_key": {
     "message": "Data limit per key",
     "description": "This string appears as a label to an input to set the default access key data limit for a server."
-  }, 
+  },
   "data_limits": {
     "message": "Data limits",
     "description": "This string appears as a title in a section to configure access key data transfer limits."
@@ -214,6 +218,10 @@
   "error_do_regions": {
     "message": "Failed to get list of available regions",
     "description": "This string appears in an error notification toast. It is shown when there is an error retrieving the regions available for server deployment."
+  },
+  "error_gcp_auth": {
+    "message": "Authentication with Google Cloud Platform failed",
+    "description": "This string appears in an error notification toast. It is shown when there is an error when logging in to the user's Google Cloud Platform account. Google Cloud Platform is a cloud server provider name and should not be translated."
   },
   "error_feedback": {
     "message": "Failed to submit feedback. Please try again.",
@@ -308,12 +316,20 @@
     "description": "This string signifies that an error we didn't expect was encountered."
   },
   "error_set_data_limit": {
-    "message": "Could not set access key data limit",
-    "description": "This string appears in an error notification toast. It is shown on failure to set a data transfer limit on access keys."
+    "message": "Could not set default data limit",
+    "description": "This string appears in an error notification toast. It is shown on failure to set the default data transfer limit on access keys."
   },
   "error_remove_data_limit": {
-    "message": "Could not disable access key data limit",
-    "description": "This string appears in an error notification toast. It is shown on failure to remove a data transfer limit on access keys."
+    "message": "Could not disable default data limit",
+    "description": "This string appears in an error notification toast. It is shown on failure to remove the default data transfer limit on access keys."
+  },
+  "error_set_per_key_limit": {
+    "message": "Could not set data limit for this access key",
+    "description": "This string appears in an error notification toast. It is shown on failure to set the data transfer limit on a particular access key."
+  },
+  "error_remove_per_key_limit": {
+    "message": "Could not remove data limit from this access key",
+    "description": "This string appears in an error notification toast. It is shown on failure to remove the data transfer limit on a particular access key."
   },
   "experiments": {
     "message": "Experiments",
@@ -467,6 +483,14 @@
     "message": "Create a VM Instance",
     "description": "This string appears as a header for a set of instructions for creating a new Google Cloud VM"
   },
+  "gcp_disconnect": {
+    "message": "Disconnect",
+    "description": "This string appears as a button in a dialog to disconnect the user's Google Cloud Platform account from the application. Clicking it signs the user out of Google Cloud Platform, a cloud server provider."
+  },
+  "gcp_disconnect_account": {
+    "message": "Disconnect Google Cloud Platform account",
+    "description": "This string appears as a header in a dialog to disconnect the user's Google Cloud Platform account from the application. Google Cloud Platform is a cloud server provider name and should not be translated."
+  },
   "gcp_firewall_create_0": {
     "message": "$START_OF_LINK$Add a new firewall rule$END_OF_LINK$ to your Compute Engine project.",
     "description": "This string appears within the server setup view as an item of a list that provides instructions to configure a firewall in Google Cloud Platform. Compute Engine is a product of Google Cloud Platform and should not be translated.",
@@ -607,6 +631,10 @@
     "message": "About",
     "description": "This string appears in an application drawer as a navigation link. Clicking it opens a dialog with information about Outline."
   },
+  "no_data_limit": {
+    "message": "None",
+    "description": "This string appears alongside each access key in the data transfer stats section if it is under no data limit.  Example: 450 MB / None"
+  },
   "nav_data_collection": {
     "message": "Data collection",
     "description": "This string appears in an application drawer as a navigation link. Clicking it opens Outline's data collection policy in the browser."
@@ -706,6 +734,20 @@
   "okay": {
     "message": "OK",
     "description": "This string appears across the application as a button. It lets the user acknowledge displayed information. Clicking dismisses the enclosing UI element."
+  },
+  "per_key_data_limit_dialog_set_custom": {
+    "message": "Set a custom data limit",
+    "description": "This string appears next to a checkbox in the per-key data limit dialog which, when selected, shows the input to add a data limit to an access key"
+  },
+  "per_key_data_limit_dialog_title": {
+    "message": "Data Limit - $KEY_NAME$",
+    "description": "This string appears as the title of the per-key data limit dialog.",
+    "placeholders": {
+      "KEY_NAME": {
+        "content": "{keyName}",
+        "Example": "Key 1"
+      }
+    }
   },
   "region_description": {
     "message": "This is where your internet experience will come from.",
@@ -852,6 +894,10 @@
   "servers_digitalocean": {
     "message": "DigitalOcean servers",
     "description": "This string appears in an application drawer as the header of a section that displays the list of DigitalOcean servers. DigitalOcean is a cloud server provider name and should not be translated."
+  },
+  "servers_gcp": {
+    "message": "Google Cloud Platform servers",
+    "description": "This string appears in an application drawer as the header of a section that displays the list of Google Cloud Platform servers. Google Cloud Platform is a cloud server provider name and should not be translated."
   },
   "servers_manual": {
     "message": "Servers",

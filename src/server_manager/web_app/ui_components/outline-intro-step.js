@@ -181,38 +181,39 @@ Polymer({
       <div class="container">
         <div id="digital-ocean" class="card" on-tap="connectToDigitalOceanTapped">
           <div class="card-header">
-            <div class="tag" hidden\$="{{isSignedInToDigitalOcean}}">[[localize('setup-recommended')]]</div>
-            <div class="email" hidden\$="{{!isSignedInToDigitalOcean}}">{{digitalOceanEmail}}</div>
+            <div class="tag" hidden\$="[[_computeIsAccountConnected(digitalOceanAccountName)]]">[[localize('setup-recommended')]]</div>
+            <div class="email" hidden\$="[[!_computeIsAccountConnected(digitalOceanAccountName)]]">[[digitalOceanAccountName]]</div>
             <img src="images/do_white_logo.svg">
           </div>
           <div class="card-title">DigitalOcean</div>
           <div class="card-body">
             <div class="description">
-              <ul hidden\$="{{isSignedInToDigitalOcean}}">
+              <ul hidden\$="[[_computeIsAccountConnected(digitalOceanAccountName)]]">
                 <li>[[localize('setup-do-easiest')]]</li>
                 <li>[[localize('setup-do-cost')]]</li>
                 <li>[[localize('setup-do-data')]]</li>
                 <li>[[localize('setup-do-cancel')]]</li>
               </ul>
-              <p hidden\$="{{!isSignedInToDigitalOcean}}">
+              <p hidden\$="[[!_computeIsAccountConnected(digitalOceanAccountName)]]">
                 [[localize('setup-do-create')]]
               </p>
             </div>
           </div>
           <div class="card-footer">
-            <paper-button class="primary" hidden\$="{{isSignedInToDigitalOcean}}">[[localize('setup-action')]]</paper-button>
-            <paper-button class="primary" hidden\$="{{!isSignedInToDigitalOcean}}">[[localize('setup-create')]]</paper-button>
+            <paper-button class="primary" hidden\$="[[_computeIsAccountConnected(digitalOceanAccountName)]]">[[localize('setup-action')]]</paper-button>
+            <paper-button class="primary" hidden\$="[[!_computeIsAccountConnected(digitalOceanAccountName)]]">[[localize('setup-create')]]</paper-button>
           </div>
         </div>
 
         <div id="gcp" class="card" on-tap="setUpGcpTapped">
           <div class="card-header">
-            <div class="tag">[[localize('setup-advanced')]]</div>
+            <div class="tag" hidden\$="[[_computeIsAccountConnected(gcpAccountName)]]">[[localize('setup-advanced')]]</div>
+            <div class="email" hidden\$="[[!_computeIsAccountConnected(gcpAccountName)]]">[[gcpAccountName]]</div>
             <img src="images/gcp-logo.svg">
           </div>
           <div class="card-title">Google Cloud Platform</div>
           <div class="card-body">
-            <div class="description">
+            <div class="description" hidden\$="[[_computeIsAccountConnected(gcpAccountName)]]">
               <ul>
                 <li>[[localize('setup-step-by-step')]]</li>
                 <li>[[localize('setup-firewall-instructions')]]</li>
@@ -221,7 +222,8 @@ Polymer({
             </div>
           </div>
           <div class="card-footer">
-            <paper-button on-tap="setUpGcpTapped" class="primary">[[localize('setup-action')]]</paper-button>
+            <paper-button class="primary" hidden\$="[[_computeIsAccountConnected(gcpAccountName)]]">[[localize('setup-action')]]</paper-button>
+            <paper-button class="primary" hidden\$="[[!_computeIsAccountConnected(gcpAccountName)]]">[[localize('setup-create')]]</paper-button>
           </div>
         </div>
 
@@ -270,16 +272,26 @@ Polymer({
   is: 'outline-intro-step',
 
   properties: {
-    isSignedInToDigitalOcean: Boolean,
-    digitalOceanEmail: String,
+    digitalOceanAccountName: {
+      type: String,
+      value: null,
+    },
+    gcpAccountName: {
+      type: String,
+      value: null,
+    },
     localize: {
       type: Function,
       readonly: true,
     },
   },
 
+  _computeIsAccountConnected(accountName) {
+    return Boolean(accountName);
+  },
+
   connectToDigitalOceanTapped: function() {
-    if (this.isSignedInToDigitalOcean) {
+    if (this.digitalOceanAccountName) {
       this.fire('CreateDigitalOceanServerRequested');
     } else {
       this.fire('ConnectDigitalOceanAccountRequested');
@@ -295,6 +307,14 @@ Polymer({
   },
 
   setUpGcpTapped: function() {
-    this.fire('SetUpGcpRequested');
+    if (outline.gcpAuthEnabled) {
+      if (this.gcpAccountName) {
+        this.fire('CreateGcpServerRequested');
+      } else {
+        this.fire('ConnectGcpAccountRequested');
+      }
+    } else {
+      this.fire('SetUpGcpRequested');
+    }
   }
 });

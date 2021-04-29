@@ -14,13 +14,10 @@
 
 import './ui_components/app-root.js';
 
-import * as digitalocean_api from '../cloud/digitalocean_api';
 import * as i18n from '../infrastructure/i18n';
-import {getSentryApiUrl} from '../infrastructure/sentry';
 
 import {App} from './app';
-import {DigitalOceanTokenManager} from './digitalocean_oauth';
-import * as digitalocean_server from './digitalocean_server';
+import {CloudAccounts} from './cloud_accounts';
 import {ManualServerRepository} from './manual_server';
 import {AppRoot} from './ui_components/app-root.js';
 
@@ -51,10 +48,12 @@ const SUPPORTED_LANGUAGES: {[key: string]: LanguageDef} = {
   'id': {id: 'id', name: 'Bahasa Indonesia', dir: 'ltr'},
   'it': {id: 'it', name: 'Italiano', dir: 'ltr'},
   'ja': {id: 'ja', name: '日本語', dir: 'ltr'},
+  'kk': {id: 'kk', name: 'Қазақ тілі', dir: 'ltr'},
   'km': {id: 'km', name: 'ភាសាខ្មែរ', dir: 'ltr'},
   'ko': {id: 'ko', name: '한국어', dir: 'ltr'},
   'lt': {id: 'lt', name: 'Lietuvių', dir: 'ltr'},
   'lv': {id: 'lv', name: 'Latviešu', dir: 'ltr'},
+  'my': {id: 'my', name: 'မြန်မာစာ', dir: 'ltr'},
   'nl': {id: 'nl', name: 'Nederlands', dir: 'ltr'},
   'no': {id: 'no', name: 'Norsk (bokmål / riksmål)', dir: 'ltr'},
   'pl': {id: 'pl', name: 'Polski', dir: 'ltr'},
@@ -97,16 +96,17 @@ document.addEventListener('WebComponentsReady', () => {
   // Parse URL query params.
   const params = new URL(document.URL).searchParams;
   const debugMode = params.get('outlineDebugMode') === 'true';
-  const metricsUrl = params.get('metricsUrl');
-  const shadowboxImage = params.get('image');
   const version = params.get('version');
-  const sentryDsn = params.get('sentryDsn');
 
-  // Set DigitalOcean server repository parameters.
-  const digitalOceanServerRepositoryFactory = (session: digitalocean_api.DigitalOceanSession) => {
-    return new digitalocean_server.DigitaloceanServerRepository(
-        session, shadowboxImage, metricsUrl, getSentryApiUrl(sentryDsn), debugMode);
+  const shadowboxImageId = params.get('image');
+  const shadowboxSettings = {
+    imageId: shadowboxImageId,
+    metricsUrl: params.get('metricsUrl'),
+    sentryApiUrl: params.get('sentryDsn'),
+    watchtowerRefreshSeconds: shadowboxImageId ? 30 : undefined,
   };
+
+  const cloudAccounts = new CloudAccounts(shadowboxSettings, debugMode);
 
   // Create and start the app.
   const language = getLanguageToUse();
@@ -120,10 +120,5 @@ document.addEventListener('WebComponentsReady', () => {
   const filteredLanguageDefs = Object.values(SUPPORTED_LANGUAGES);
   appRoot.supportedLanguages = sortLanguageDefsByName(filteredLanguageDefs);
   appRoot.setLanguage(language.string(), languageDirection);
-  new App(
-      appRoot, version, digitalocean_api.createDigitalOceanSession,
-      digitalOceanServerRepositoryFactory, new ManualServerRepository('manualServers'),
-      new DigitalOceanTokenManager())
-      .start();
+  new App(appRoot, version, new ManualServerRepository('manualServers'), cloudAccounts).start();
 });
-
