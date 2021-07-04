@@ -19,76 +19,21 @@ import '@polymer/paper-item/paper-item.js';
 import './outline-region-picker-step';
 
 import {css, customElement, html, internalProperty, LitElement, property} from 'lit-element';
+import {unsafeHTML} from 'lit-html/directives/unsafe-html.js';
 
-import {BillingAccount, Project} from '../../model/gcp';
+import {AppRoot} from './app-root';
+import {BillingAccount, Project, Zone} from '../../model/gcp';
 import {GcpAccount} from '../gcp_account';
 import {COMMON_STYLES} from './cloud-install-styles';
-import {Location, OutlineRegionPicker} from './outline-region-picker-step';
+import {OutlineRegionPicker} from './outline-region-picker-step';
+import {filterOptions, getShortName} from '../location_formatting';
+import {CloudLocation} from '../../model/location';
 
-// TODO: Map region ids to country codes.
-/** @see https://cloud.google.com/compute/docs/regions-zones */
-const LOCATION_MAP = new Map<string, string>([
-  ['asia-east1', 'Changhua County, Taiwan'],
-  ['asia-east2', 'Hong Kong'],
-  ['asia-northeast1', 'Tokyo, Japan'],
-  ['asia-northeast2', 'Osaka, Japan'],
-  ['asia-northeast3', 'Seoul, South Korea'],
-  ['asia-south1', 'Mumbai, India'],
-  ['asia-southeast1', 'Jurong West, Singapore'],
-  ['asia-southeast2', 'Jakarta, Indonesia'],
-  ['australia-southeast1', 'Sydney, Australia'],
-  ['europe-north1', 'Hamina, Finland'],
-  ['europe-west1', 'St. Ghislain, Belgium'],
-  ['europe-west2', 'London, England, UK'],
-  ['europe-west3', 'Frankfurt, Germany'],
-  ['europe-west4', 'Eemshaven, Netherlands'],
-  ['europe-west6', 'Zürich, Switzerland'],
-  ['europe-central2', 'Warsaw, Poland, Europe'],
-  ['northamerica-northeast1', 'Montréal, Québec, Canada'],
-  ['southamerica-east1', 'Osasco (São Paulo), Brazil'],
-  ['us-central1', 'Council Bluffs, Iowa, USA'],
-  ['us-east1', 'Moncks Corner, South Carolina, USA'],
-  ['us-east4', 'Ashburn, Northern Virginia, USA'],
-  ['us-west1', 'The Dalles, Oregon, USA'],
-  ['us-west2', 'Los Angeles, California, USA'],
-  ['us-west3', 'Salt Lake City, Utah, USA'],
-  ['us-west4', 'Las Vegas, Nevada, USA'],
-]);
 
-// GCP mapping of regions to flags
-const FLAG_IMAGE_DIR = 'images/flags';
-const GCP_FLAG_MAPPING: {[regionId: string]: string} = {
-  // 'asia-east1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'asia-east2': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'asia-northeast1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'asia-northeast2': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'asia-northeast3': `${FLAG_IMAGE_DIR}/unknown.png`,
-  'asia-south1': `${FLAG_IMAGE_DIR}/india.png`,
-  'asia-southeast1': `${FLAG_IMAGE_DIR}/singapore.png`,
-  // 'asia-southeast2': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'australia-southeast1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'europe-north1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'europe-west1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  'europe-west2': `${FLAG_IMAGE_DIR}/uk.png`,
-  'europe-west3': `${FLAG_IMAGE_DIR}/germany.png`,
-  'europe-west4': `${FLAG_IMAGE_DIR}/netherlands.png`,
-  // 'europe-west6': `${FLAG_IMAGE_DIR}/unknown.png`,
-  // 'europe-central2': `${FLAG_IMAGE_DIR}/unknown.png`,
-  'northamerica-northeast1': `${FLAG_IMAGE_DIR}/canada.png`,
-  // 'southamerica-east1': `${FLAG_IMAGE_DIR}/unknown.png`,
-  'us-central1': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-east1': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-east4': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-west1': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-west2': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-west3': `${FLAG_IMAGE_DIR}/us.png`,
-  'us-west4': `${FLAG_IMAGE_DIR}/us.png`,
-};
-
-// TODO: Handle network and authentication errors
 @customElement('outline-gcp-create-server-app')
 export class GcpCreateServerApp extends LitElement {
-  @property({type: Function}) localize: Function;
+  @property({type: Function}) localize: (msgId: string, ...params: string[]) => string;
+  @property({type: String}) language: string;
   @internalProperty() private currentPage = '';
   @internalProperty() private selectedProjectId = '';
   @internalProperty() private selectedBillingAccountId = '';
@@ -98,6 +43,7 @@ export class GcpCreateServerApp extends LitElement {
   private project: Project;
   private billingAccounts: BillingAccount[] = [];
   private regionPicker: OutlineRegionPicker;
+  private billingAccountsRefreshLoop: number = null;
 
   static get styles() {
     return [
@@ -111,7 +57,7 @@ export class GcpCreateServerApp extends LitElement {
         justify-content: center;
         height: 100%;
         align-items: center;
-        padding: 132px 0;
+        padding: 156px 0;
         font-size: 14px;
       }
       .card {
@@ -120,7 +66,6 @@ export class GcpCreateServerApp extends LitElement {
         align-items: stretch;
         justify-content: space-between;
         margin: 24px 0;
-        padding: 24px;
         background: var(--background-contrast-color);
         box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.14), 0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 1px 3px 0 rgba(0, 0, 0, 0.2);
         border-radius: 2px;
@@ -205,23 +150,26 @@ export class GcpCreateServerApp extends LitElement {
   }
 
   private renderBillingAccountSetup() {
+    const openLink = '<a href="https://console.cloud.google.com/billing">';
+    const closeLink = '</a>';
     return html`
       <outline-step-view id="billingAccountSetup" display-action="">
-        <span slot="step-title">Activate your Google Cloud Platform account.</span>
-        <span slot="step-description">Enter your billing information on Google Cloud Platform.</span>
+        <span slot="step-title">${this.localize('gcp-billing-title')}</span>
+        <span slot="step-description">
+          ${unsafeHTML(this.localize('gcp-billing-description', 'openLink', openLink, 'closeLink', closeLink))}
+        </span>
         <span slot="step-action">
-          <paper-button id="createServerButton" @tap="${this.handleBillingVerificationNextTap}">
-            NEXT
+          <paper-button id="billingPageAction" @tap="${this.handleBillingVerificationNextTap}">
+            ${this.localize('gcp-billing-action')}
           </paper-button>
         </span>
         <paper-card class="card">
           <div class="container">
             <img src="images/do_oauth_billing.svg">
-            <p>Enter you billing information on Google Cloud Platform</p>
-            <!-- TODO: Add call to action to open GCP billing accounts page -->
-            <!-- https://console.cloud.google.com/billing --> 
+            <p>${unsafeHTML(this.localize('gcp-billing-body', 'openLink', openLink, 'closeLink', closeLink))}</p>
           </div>
-        </paper-card>  
+          <paper-progress indeterminate></paper-progress>
+        </paper-card>
       </outline-step-view>`;
   }
 
@@ -231,13 +179,16 @@ export class GcpCreateServerApp extends LitElement {
         <span slot="step-title">Create your Google Cloud Platform project.</span>
         <span slot="step-description">This will create a new project on your GCP account to hold your Outline servers.</span>
         <span slot="step-action">
-          <paper-button 
-              id="createServerButton" 
-              @tap="${this.handleProjectSetupNextTap}" 
-              ?disabled="${
-    !this.isProjectSetupNextEnabled(this.selectedProjectId, this.selectedBillingAccountId)}">
-            CREATE PROJECT
-          </paper-button>
+          ${this.isProjectBeingCreated ?
+            // TODO: Support canceling server creation.
+            html`<paper-button disabled="true">IN PROGRESS...</paper-button>` :
+            html`<paper-button
+                id="createServerButton"
+                @tap="${this.handleProjectSetupNextTap}"
+                ?disabled="${
+      !this.isProjectSetupNextEnabled(this.selectedProjectId, this.selectedBillingAccountId)}">
+              CREATE PROJECT
+            </paper-button>`}
         </span>
           <div class="section">
             <div class="section-header">
@@ -262,7 +213,7 @@ export class GcpCreateServerApp extends LitElement {
               </div>
             </div>
             <div class="section-content">
-              <paper-dropdown-menu id="billingAccount" no-label-float="">
+              <paper-dropdown-menu id="billingAccount" no-label-float="" horizontal-align="left">
                 <paper-listbox slot="dropdown-content" selected="${
         this.selectedBillingAccountId}" attr-for-selected="name" @selected-changed="${
         this.onBillingAccountSelected}">
@@ -282,8 +233,10 @@ export class GcpCreateServerApp extends LitElement {
 
   private renderRegionPicker() {
     return html`
-      <outline-region-picker-step id="regionPicker" .localize=${this.localize} @RegionSelected="${
-        this.onRegionSelected}">  
+      <outline-region-picker-step id="regionPicker"
+        .localize=${this.localize}
+        .language=${this.language}
+        @RegionSelected="${this.onRegionSelected}">  
       </outline-region-picker-step>`;
   }
 
@@ -291,44 +244,86 @@ export class GcpCreateServerApp extends LitElement {
     this.init();
     this.account = account;
 
-    this.billingAccounts = await this.account.listBillingAccounts();
-    const projects = await this.account.listProjects();
-    // TODO: We don't support multiple projects atm, but we will want to allow
-    //  the user to choose the appropriate one.
-    this.project = projects?.[0];
+    try {
+      this.billingAccounts = await this.account.listOpenBillingAccounts();
+      const projects = await this.account.listProjects();
+      // TODO: We don't support multiple projects atm, but we will want to allow
+      // the user to choose the appropriate one.
+      this.project = projects?.[0];
+    } catch (e) {
+      // TODO: Surface this error to the user.
+      console.warn('Error fetching GCP account info', e);
+    }
     const isProjectHealthy =
         this.project ? await this.account.isProjectHealthy(this.project.id) : false;
     if (this.project && isProjectHealthy) {
       this.showRegionPicker();
+    } else if (!(this.billingAccounts?.length > 0)) {
+      this.showBillingAccountSetup();
+      // Check every five seconds to see if an account has been added.
+      this.billingAccountsRefreshLoop = window.setInterval(() => {
+        try {
+          this.refreshBillingAccounts();
+        } catch (e) {
+          console.warn('Billing account refresh error', e);
+        }
+      }, 5000);
     } else {
-      if (!this.billingAccounts || this.billingAccounts.length === 0) {
-        this.showBillingAccountSetup();
-      } else {
-        this.showProjectSetup(this.project);
-      }
+      this.showProjectSetup(this.project);
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.stopRefreshingBillingAccounts();
   }
 
   private init() {
     this.currentPage = '';
     this.selectedProjectId = '';
     this.selectedBillingAccountId = '';
+    this.stopRefreshingBillingAccounts();
   }
 
   private showBillingAccountSetup(): void {
     this.currentPage = 'billingAccountSetup';
   }
 
+  private async refreshBillingAccounts(): Promise<void> {
+    this.billingAccounts = await this.account.listOpenBillingAccounts();
+
+    if (this.billingAccounts?.length > 0) {
+      this.stopRefreshingBillingAccounts();
+      this.showProjectSetup();
+      window.bringToFront();
+    }
+  }
+
+  public stopRefreshingBillingAccounts(): void {
+    window.clearInterval(this.billingAccountsRefreshLoop);
+    this.billingAccountsRefreshLoop = null;
+  }
+
+  private showError(message: string) {
+    const appRoot: AppRoot =
+        document.getElementById('appRoot') as unknown as AppRoot;
+    appRoot.showError(message);
+  }
+
   private async handleBillingVerificationNextTap(): Promise<void> {
-    this.showProjectSetup();
+    try {
+      await this.refreshBillingAccounts();
+    } catch (e) {
+      this.showError(this.localize('gcp-billing-error'));
+    }
+    if (this.billingAccounts?.length > 0) {
+      await this.showProjectSetup();
+    } else {
+      this.showError(this.localize('gcp-billing-error-zero'));
+    }
   }
 
   private async showProjectSetup(existingProject?: Project): Promise<void> {
-    this.billingAccounts = await this.account.listBillingAccounts();
-    if (!this.billingAccounts || this.billingAccounts.length === 0) {
-      return this.showBillingAccountSetup();
-    }
-
     this.project = existingProject ?? null;
     this.selectedProjectId = this.project?.id ?? this.makeProjectName();
     this.selectedBillingAccountId = this.billingAccounts[0].id;
@@ -342,15 +337,19 @@ export class GcpCreateServerApp extends LitElement {
 
   private async handleProjectSetupNextTap(): Promise<void> {
     this.isProjectBeingCreated = true;
-    if (!this.project) {
-      this.project =
-          await this.account.createProject(this.selectedProjectId, this.selectedBillingAccountId);
-    } else {
-      await this.account.repairProject(this.project.id, this.selectedBillingAccountId);
+    try {
+      if (!this.project) {
+        this.project =
+            await this.account.createProject(this.selectedProjectId, this.selectedBillingAccountId);
+      } else {
+        await this.account.repairProject(this.project.id, this.selectedBillingAccountId);
+      }
+      this.showRegionPicker();
+    } catch (e) {
+      this.showError(this.localize('gcp-project-setup-error'));
+      console.warn('Project setup failed:', e);
     }
     this.isProjectBeingCreated = false;
-
-    this.showRegionPicker();
   }
 
   private async showRegionPicker(): Promise<void> {
@@ -360,12 +359,12 @@ export class GcpCreateServerApp extends LitElement {
     }
 
     this.currentPage = 'regionPicker';
-    const regionMap = await this.account.listLocations(this.project.id);
-    const locations = Object.entries(regionMap).map(([regionId, zoneIds]) => {
-      return this.createLocationModel(regionId, zoneIds);
-    });
+    const zoneOptions = await this.account.listLocations(this.project.id);
+    // Note: This relies on a side effect of the previous call to `await`.
+    // `this.regionPicker` is null after `this.currentPage`, and is only populated
+    // asynchronously.
     this.regionPicker = this.shadowRoot.querySelector('#regionPicker') as OutlineRegionPicker;
-    this.regionPicker.locations = locations;
+    this.regionPicker.options = filterOptions(zoneOptions);
   }
 
   private onProjectIdChanged(event: CustomEvent) {
@@ -379,30 +378,21 @@ export class GcpCreateServerApp extends LitElement {
     event.stopPropagation();
 
     this.regionPicker.isServerBeingCreated = true;
-    const name = this.makeServerName();
+    const zone = event.detail.selectedLocation as Zone;
+    const name = this.makeLocalizedServerName(zone);
     const server =
-        await this.account.createServer(this.project.id, name, event.detail.selectedRegionId);
+        await this.account.createServer(this.project.id, name, zone);
     const params = {bubbles: true, composed: true, detail: {server}};
     const serverCreatedEvent = new CustomEvent('GcpServerCreated', params);
     this.dispatchEvent(serverCreatedEvent);
-  }
-
-  private createLocationModel(regionId: string, zoneIds: string[]): Location {
-    return {
-      id: zoneIds.length > 0 ? zoneIds[0] : null,
-      name: LOCATION_MAP.get(regionId) ?? regionId,
-      flag: GCP_FLAG_MAPPING[regionId] || `${FLAG_IMAGE_DIR}/unknown.png`,
-      available: zoneIds.length > 0,
-    };
   }
 
   private makeProjectName(): string {
     return `outline-${Math.random().toString(20).substring(3)}`;
   }
 
-  private makeServerName(): string {
-    const now = new Date();
-    return `outline-${now.getFullYear()}${now.getMonth()}${now.getDate()}-${now.getUTCHours()}${
-        now.getUTCMinutes()}${now.getUTCSeconds()}`;
+  private makeLocalizedServerName(cloudLocation: CloudLocation): string {
+    const placeName = getShortName(cloudLocation, this.localize);
+    return this.localize('server-name', 'serverLocation', placeName);
   }
 }

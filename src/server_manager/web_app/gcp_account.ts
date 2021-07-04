@@ -21,12 +21,20 @@ import * as server from '../model/server';
 
 import {GcpServer} from './gcp_server';
 
+/** Returns a unique, RFC1035-style name as required by GCE. */
+function makeGcpInstanceName(): string {
+  const now = new Date();
+  return `outline-${now.getFullYear()}${now.getMonth()}${now.getDate()}-${now.getUTCHours()}${
+      now.getUTCMinutes()}${now.getUTCSeconds()}`;
+}
+  
 /**
  * The Google Cloud Platform account model.
  */
 export class GcpAccount implements gcp.Account {
   private static readonly OUTLINE_PROJECT_NAME = 'Outline servers';
   private static readonly OUTLINE_FIREWALL_NAME = 'outline';
+  private static readonly OUTLINE_FIREWALL_TAG = 'outline';
   private static readonly MACHINE_SIZE = 'f1-micro';
   private static readonly REQUIRED_GCP_SERVICES = ['compute.googleapis.com'];
 
@@ -52,9 +60,9 @@ export class GcpAccount implements gcp.Account {
   }
 
   /** @see {@link Account#createServer}. */
-  async createServer(projectId: string, name: string, zoneId: string):
+  async createServer(projectId: string, name: string, zone: gcp.Zone):
       Promise<server.ManagedServer> {
-    const instance = await this.createInstance(projectId, name, zoneId);
+    const instance = await this.createInstance(projectId, name, zone);
     const id = `${this.id}:${instance.id}`;
     return new GcpServer(id, projectId, instance, this.apiClient);
   }
@@ -82,21 +90,13 @@ export class GcpAccount implements gcp.Account {
   }
 
   /** @see {@link Account#listLocations}. */
-  async listLocations(projectId: string): Promise<gcp.ZoneMap> {
+  async listLocations(projectId: string): Promise<gcp.ZoneOption[]> {
     const listZonesResponse = await this.apiClient.listZones(projectId);
     const zones = listZonesResponse.items ?? [];
-
-    const result: gcp.ZoneMap = {};
-    zones.map((zone) => {
-      const region = zone.region.substring(zone.region.lastIndexOf('/') + 1);
-      if (!(region in result)) {
-        result[region] = [];
-      }
-      if (zone.status === 'UP') {
-        result[region].push(zone.name);
-      }
-    });
-    return result;
+    return zones.map(zoneInfo => ({
+      cloudLocation: new gcp.Zone(zoneInfo.name),
+      available: zoneInfo.status === 'UP'
+    }));
   }
 
   /** @see {@link Account#listProjects}. */
@@ -166,26 +166,37 @@ export class GcpAccount implements gcp.Account {
   }
 
   /** @see {@link Account#listBillingAccounts}. */
-  async listBillingAccounts(): Promise<BillingAccount[]> {
+  async listOpenBillingAccounts(): Promise<BillingAccount[]> {
     const response = await this.apiClient.listBillingAccounts();
     if (response.billingAccounts?.length > 0) {
-      return response.billingAccounts.map(billingAccount => {
-        return {
-          id: billingAccount.name.substring(billingAccount.name.lastIndexOf('/') + 1),
-          name: billingAccount.displayName,
-        };
-      });
+      return response.billingAccounts
+          .filter(billingAccount => billingAccount.open)
+          .map(billingAccount => ({
+        id: billingAccount.name.substring(billingAccount.name.lastIndexOf('/') + 1),
+        name: billingAccount.displayName,
+      }));
     }
     return [];
   }
 
-  private async createInstance(projectId: string, name: string, zoneId: string):
+  private async createInstance(projectId: string, name: string, zone: gcp.Zone):
       Promise<gcp_api.Instance> {
     // Configure Outline firewall
     const getFirewallResponse =
         await this.apiClient.listFirewalls(projectId, GcpAccount.OUTLINE_FIREWALL_NAME);
     if (!getFirewallResponse?.items || getFirewallResponse?.items?.length === 0) {
-      const createFirewallData = this.makeCreateFirewallRequestData(name);
+      const createFirewallData = {
+        name: GcpAccount.OUTLINE_FIREWALL_NAME,
+        direction: 'INGRESS',
+        priority: 1000,
+        targetTags: [GcpAccount.OUTLINE_FIREWALL_TAG],
+        allowed: [
+          {
+            IPProtocol: 'all',
+          },
+        ],
+        sourceRanges: ['0.0.0.0/0'],
+      };
       const createFirewallOperation = await this.apiClient.createFirewall(projectId, createFirewallData);
       if (createFirewallOperation.error?.errors) {
         // TODO: Throw error.
@@ -193,75 +204,11 @@ export class GcpAccount implements gcp.Account {
     }
 
     // Create VM instance
-    const createInstanceData = this.makeCreateInstanceRequestData(name, zoneId);
-    const createInstanceOperation =
-        await this.apiClient.createInstance(projectId, zoneId, createInstanceData);
-    if (createInstanceOperation.error?.errors) {
-      // TODO: Throw error.
-    }
-
-    const instance =
-        await this.apiClient.getInstance(projectId, createInstanceOperation.targetId, zoneId);
-
-    // Promote ephemeral IP to static IP
-    const regionId = zoneId.substring(0, zoneId.lastIndexOf('-'));
-    const ipAddress = instance.networkInterfaces[0].accessConfigs[0].natIP;
-    const createStaticIpData = {
-      name,
-      address: ipAddress,
-    };
-    const createStaticIpOperation =
-        await this.apiClient.createStaticIp(projectId, regionId, createStaticIpData);
-    if (createStaticIpOperation.error?.errors) {
-      // TODO: Delete VM instance. Throw error.
-    }
-
-    return instance;
-  }
-
-  private async configureProject(projectId: string, billingAccountId: string): Promise<void> {
-    // Link billing account
-    const updateProjectBillingInfoData =
-        this.makeUpdateProjectBillingInfoRequestData(projectId, billingAccountId);
-    await this.apiClient.updateProjectBillingInfo(projectId, updateProjectBillingInfoData);
-
-    // Enable APIs
-    const enableServicesData = {
-      serviceIds: GcpAccount.REQUIRED_GCP_SERVICES,
-    };
-    const enableServicesResponse =
-        await this.apiClient.enableServices(projectId, enableServicesData);
-    let enableServicesOperation = null;
-    while (!enableServicesOperation?.done) {
-      await sleep(2 * 1000);
-      enableServicesOperation =
-          await this.apiClient.serviceUsageOperationGet(enableServicesResponse.name);
-    }
-    if (enableServicesResponse.error) {
-      // TODO: Throw error.
-    }
-  }
-
-  private makeCreateFirewallRequestData(name: string): {} {
-    return {
-      name: GcpAccount.OUTLINE_FIREWALL_NAME,
-      direction: 'INGRESS',
-      priority: 1000,
-      targetTags: [name],
-      allowed: [
-        {
-          IPProtocol: 'all',
-        },
-      ],
-      sourceRanges: ['0.0.0.0/0'],
-    };
-  }
-
-  private makeCreateInstanceRequestData(name: string, zoneId: string): {} {
-    const installScript = this.getInstallScript();
-    return {
-      name,
-      machineType: `zones/${zoneId}/machineTypes/${GcpAccount.MACHINE_SIZE}`,
+    const instanceName = makeGcpInstanceName();
+    const createInstanceData = {
+      name: instanceName,
+      description: name,  // Show a human-readable name in the GCP console
+      machineType: `zones/${zone.id}/machineTypes/${GcpAccount.MACHINE_SIZE}`,
       disks: [
         {
           boot: true,
@@ -281,8 +228,8 @@ export class GcpAccount implements gcp.Account {
         outline: 'true',
       },
       tags: {
-        // This must match the firewall name.
-        items: ['outline'],
+        // This must match the firewall target tag.
+        items: [GcpAccount.OUTLINE_FIREWALL_TAG],
       },
       metadata: {
         items: [
@@ -292,22 +239,64 @@ export class GcpAccount implements gcp.Account {
           },
           {
             key: 'user-data',
-            value: installScript,
+            value: this.getInstallScript(),
           },
         ],
       },
     };
+    const createInstanceOperation =
+        await this.apiClient.createInstance(projectId, zone.id, createInstanceData);
+    if (createInstanceOperation.error?.errors) {
+      // TODO: Throw error.
+    }
+
+    const instance =
+        await this.apiClient.getInstance(projectId, createInstanceOperation.targetId, zone.id);
+
+    // Promote ephemeral IP to static IP
+    const ipAddress = instance.networkInterfaces[0].accessConfigs[0].natIP;
+    const createStaticIpData = {
+      name: instance.name,
+      description: instance.description,
+      address: ipAddress,
+    };
+    const createStaticIpOperation = await this.apiClient.createStaticIp(
+        projectId, zone.regionId, createStaticIpData);
+    if (createStaticIpOperation.error?.errors) {
+      // TODO: Delete VM instance. Throw error.
+    }
+
+    return instance;
   }
 
-  private makeUpdateProjectBillingInfoRequestData(projectId: string, billingAccountId: string): {} {
-    return {
+  private async configureProject(projectId: string, billingAccountId: string): Promise<void> {
+    // Link billing account
+    const updateProjectBillingInfoData = {
       name: `projects/${projectId}/billingInfo`,
       projectId,
       billingAccountName: `billingAccounts/${billingAccountId}`,
     };
+    await this.apiClient.updateProjectBillingInfo(projectId, updateProjectBillingInfoData);
+
+    // Enable APIs
+    const enableServicesData = {
+      serviceIds: GcpAccount.REQUIRED_GCP_SERVICES,
+    };
+    const enableServicesResponse =
+        await this.apiClient.enableServices(projectId, enableServicesData);
+    let enableServicesOperation = null;
+    while (!enableServicesOperation?.done) {
+      await sleep(2 * 1000);
+      enableServicesOperation =
+          await this.apiClient.serviceUsageOperationGet(enableServicesResponse.name);
+    }
+    if (enableServicesResponse.error) {
+      // TODO: Throw error.
+    }
   }
 
   private getInstallScript(): string {
+    // TODO: Populate SB_DEFAULT_SERVER_NAME and other environment variables.
     return '#!/bin/bash -eu\n' + SCRIPT;
   }
 }

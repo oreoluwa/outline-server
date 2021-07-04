@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {CloudLocation} from "./location";
+
 export interface Server {
-  // Gets a globally unique identifier for this Server.
+  // Gets a globally unique identifier for this Server.  THIS MUST NOT make a network request, as
+  // it's used to identify unreachable servers.
   getId(): string;
 
   // Gets the server's name for display.
@@ -118,8 +121,8 @@ export interface ManagedServerHost {
   getMonthlyOutboundTransferLimit(): DataAmount;
   // Returns the monthly cost.
   getMonthlyCost(): MonetaryCost;
-  // Returns the server region.
-  getRegionId(): RegionId;
+  // Returns the server location
+  getCloudLocation(): CloudLocation;
   // Deletes the server - cannot be undone.
   delete(): Promise<void>;
 }
@@ -132,8 +135,6 @@ export class MonetaryCost {
   // Value in US dollars.
   usd: number;
 }
-
-export type RegionId = string;
 
 // Configuration for manual servers.  This is the output emitted from the
 // shadowbox install script, which is needed for the manager connect to
