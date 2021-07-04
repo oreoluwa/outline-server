@@ -21,7 +21,7 @@ jobs:
         FORCE_PUSH: "false"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
     - name: Push newest changes to deploy branch
-      uses: ad-m/github-push-action@master
+      uses: ad-m/github-push-action@057a6ba835d986bfe495dd476a6c4db1d5f9503c
       with:
         directory: work
         github_token: ${{ secrets.PUSH_TOKEN }}
