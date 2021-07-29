@@ -889,6 +889,10 @@
     "message": "This is where your internet experience will come from.",
     "description": "This string appears within the server creation flow, as a sub-header of the server selection view. Lets the user know about the implications of selecting a server location."
   },
+  "region_lowest_cost": {
+    "message": "Lowest Cost",
+    "description": "Appears within the server creation flow, indicating that a server option costs less than the other options."
+  },
   "region_setup": {
     "message": "Set up Outline",
     "description": "This string appears within the server creation flow, as a button of the server selection view. Clicking it creates an Outline server at the selected location. 'Set up' means install and run the Outline server software."
@@ -1128,7 +1132,7 @@
     "description": "This string appears in the server setup view as an item of a list describing Outline's features. Refers to the monthly amount of transfer data offered by a cloud server provider. TB is an abbreviation for terabyte and should not be translated."
   },
   "setup_do_description": {
-    "message": "This could take up to two minutes. You can destroy this server at anytime.",
+    "message": "This could take several minutes. You can destroy this server at any time.",
     "description": "This string appears in the server setup view as a sub-header. Displayed when a server is being created along a progress bar."
   },
   "setup_do_easiest": {
