@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as gcp_api from '../cloud/gcp_api';
+import {ServerInstallFailedError} from '../infrastructure/errors';
 import {sleep} from '../infrastructure/sleep';
 import {SCRIPT} from '../install_scripts/gcp_install_script';
 import * as gcp from '../model/gcp';
@@ -20,14 +21,34 @@ import {BillingAccount, Project} from '../model/gcp';
 import * as server from '../model/server';
 
 import {GcpServer} from './gcp_server';
+import * as server_install from "./server_install";
 
 /** Returns a unique, RFC1035-style name as required by GCE. */
 function makeGcpInstanceName(): string {
+  function pad2(val: number) { return val.toString().padStart(2, '0'); }
+
   const now = new Date();
-  return `outline-${now.getFullYear()}${now.getMonth()}${now.getDate()}-${now.getUTCHours()}${
-      now.getUTCMinutes()}${now.getUTCSeconds()}`;
+  const year = now.getUTCFullYear().toString();
+  const month = pad2(now.getUTCMonth() + 1);  // January is month 0.
+  const day = pad2(now.getUTCDate());
+  const hour = pad2(now.getUTCHours());
+  const minute = pad2(now.getUTCMinutes());
+  const second = pad2(now.getUTCSeconds());
+  return `outline-${year}${month}${day}-${hour}${minute}${second}`;
 }
-  
+
+// Regions where the first f1-micro instance is free.
+// See https://cloud.google.com/free/docs/gcp-free-tier/#compute
+const FREE_TIER_REGIONS = new Set<string>([
+  'us-west1',
+  'us-central1',
+  'us-east1'
+]);
+
+export function isInFreeTier(zone: gcp.Zone): boolean {
+  return FREE_TIER_REGIONS.has(zone.regionId);
+}
+
 /**
  * The Google Cloud Platform account model.
  */
@@ -35,12 +56,13 @@ export class GcpAccount implements gcp.Account {
   private static readonly OUTLINE_PROJECT_NAME = 'Outline servers';
   private static readonly OUTLINE_FIREWALL_NAME = 'outline';
   private static readonly OUTLINE_FIREWALL_TAG = 'outline';
-  private static readonly MACHINE_SIZE = 'f1-micro';
+  private static readonly MACHINE_SIZE = 'e2-micro';
   private static readonly REQUIRED_GCP_SERVICES = ['compute.googleapis.com'];
 
   private readonly apiClient: gcp_api.RestApiClient;
 
-  constructor(private id: string, private refreshToken: string) {
+  constructor(private id: string, private refreshToken: string,
+      private shadowboxSettings: server_install.ShadowboxSettings) {
     this.apiClient = new gcp_api.RestApiClient(refreshToken);
   }
 
@@ -59,33 +81,21 @@ export class GcpAccount implements gcp.Account {
     return this.refreshToken;
   }
 
-  /** @see {@link Account#createServer}. */
-  async createServer(projectId: string, name: string, zone: gcp.Zone):
-      Promise<server.ManagedServer> {
-    const instance = await this.createInstance(projectId, name, zone);
-    const id = `${this.id}:${instance.id}`;
-    return new GcpServer(id, projectId, instance, this.apiClient);
-  }
-
   /** @see {@link Account#listServers}. */
   async listServers(projectId: string): Promise<server.ManagedServer[]> {
     const result: GcpServer[] = [];
-    const listZonesResponse = await this.apiClient.listZones(projectId);
-    const listInstancesPromises = [];
-    for (const zone of listZonesResponse.items) {
-      const filter = 'labels.outline=true';
-      const listInstancesPromise = this.apiClient.listInstances(projectId, zone.name, filter);
-      listInstancesPromises.push(listInstancesPromise);
-    }
-    const listInstancesResponses = await Promise.all(listInstancesPromises);
-    for (const response of listInstancesResponses) {
-      const instances = response.items ?? [];
-      instances.forEach((instance) => {
+    const filter = 'labels.outline=true';
+    const listAllInstancesResponse =
+        await this.apiClient.listAllInstances(projectId, filter);
+    const instanceMap = listAllInstancesResponse?.items ?? {};
+    Object.values(instanceMap).forEach(({instances}) => {
+      instances?.forEach(instance => {
+        const {zoneId} = gcp_api.parseZoneUrl(instance.zone);
+        const locator = {projectId, zoneId, instanceId: instance.id};
         const id = `${this.id}:${instance.id}`;
-        const server = new GcpServer(id, projectId, instance, this.apiClient);
-        result.push(server);
+        result.push(new GcpServer(id, locator, instance.name, Promise.resolve(), this.apiClient));
       });
-    }
+    });
     return result;
   }
 
@@ -124,7 +134,7 @@ export class GcpAccount implements gcp.Account {
         outline: 'true',
       },
     };
-    const createProjectResponse = await this.apiClient.createProject(projectId, createProjectData);
+    const createProjectResponse = await this.apiClient.createProject(createProjectData);
     let createProjectOperation = null;
     while (!createProjectOperation?.done) {
       await sleep(2 * 1000);
@@ -179,8 +189,7 @@ export class GcpAccount implements gcp.Account {
     return [];
   }
 
-  private async createInstance(projectId: string, name: string, zone: gcp.Zone):
-      Promise<gcp_api.Instance> {
+  private async createFirewallIfNeeded(projectId: string) : Promise<void> {
     // Configure Outline firewall
     const getFirewallResponse =
         await this.apiClient.listFirewalls(projectId, GcpAccount.OUTLINE_FIREWALL_NAME);
@@ -198,22 +207,30 @@ export class GcpAccount implements gcp.Account {
         sourceRanges: ['0.0.0.0/0'],
       };
       const createFirewallOperation = await this.apiClient.createFirewall(projectId, createFirewallData);
-      if (createFirewallOperation.error?.errors) {
-        // TODO: Throw error.
+      const errors = createFirewallOperation.error?.errors;
+      if (errors) {
+        throw new ServerInstallFailedError(`Firewall creation failed: ${errors}`);
       }
     }
+  }
+
+  /** @see {@link Account#createServer}. */
+  async createServer(projectId: string, name: string, zone: gcp.Zone):
+      Promise<server.ManagedServer> {
+    // TODO: Move this to project setup.
+    await this.createFirewallIfNeeded(projectId);
 
     // Create VM instance
-    const instanceName = makeGcpInstanceName();
+    const gcpInstanceName = makeGcpInstanceName();
     const createInstanceData = {
-      name: instanceName,
+      name: gcpInstanceName,
       description: name,  // Show a human-readable name in the GCP console
       machineType: `zones/${zone.id}/machineTypes/${GcpAccount.MACHINE_SIZE}`,
       disks: [
         {
           boot: true,
           initializeParams: {
-            sourceImage: 'projects/ubuntu-os-cloud/global/images/family/ubuntu-1804-lts',
+            sourceImage: 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts',
           },
         },
       ],
@@ -239,34 +256,26 @@ export class GcpAccount implements gcp.Account {
           },
           {
             key: 'user-data',
-            value: this.getInstallScript(),
+            value: this.getInstallScript(name),
           },
         ],
       },
     };
+    const zoneLocator = {projectId, zoneId: zone.id};
     const createInstanceOperation =
-        await this.apiClient.createInstance(projectId, zone.id, createInstanceData);
-    if (createInstanceOperation.error?.errors) {
-      // TODO: Throw error.
+        await this.apiClient.createInstance(zoneLocator, createInstanceData);
+    const errors = createInstanceOperation.error?.errors;
+    if (errors) {
+      throw new ServerInstallFailedError(`Instance creation failed: ${errors}`);
     }
 
-    const instance =
-        await this.apiClient.getInstance(projectId, createInstanceOperation.targetId, zone.id);
+    const instanceId = createInstanceOperation.targetId;
+    const instanceLocator = {instanceId, ...zoneLocator};
+    const instanceCreation = this.apiClient.computeEngineOperationZoneWait(
+        zoneLocator, createInstanceOperation.name);
 
-    // Promote ephemeral IP to static IP
-    const ipAddress = instance.networkInterfaces[0].accessConfigs[0].natIP;
-    const createStaticIpData = {
-      name: instance.name,
-      description: instance.description,
-      address: ipAddress,
-    };
-    const createStaticIpOperation = await this.apiClient.createStaticIp(
-        projectId, zone.regionId, createStaticIpData);
-    if (createStaticIpOperation.error?.errors) {
-      // TODO: Delete VM instance. Throw error.
-    }
-
-    return instance;
+    const id = `${this.id}:${instanceId}`;
+    return new GcpServer(id, instanceLocator, gcpInstanceName, instanceCreation, this.apiClient);
   }
 
   private async configureProject(projectId: string, billingAccountId: string): Promise<void> {
@@ -295,8 +304,9 @@ export class GcpAccount implements gcp.Account {
     }
   }
 
-  private getInstallScript(): string {
-    // TODO: Populate SB_DEFAULT_SERVER_NAME and other environment variables.
-    return '#!/bin/bash -eu\n' + SCRIPT;
+  private getInstallScript(serverName: string): string {
+    return '#!/bin/bash -eu\n' +
+        server_install.getShellExportCommands(this.shadowboxSettings, serverName) +
+        SCRIPT;
   }
 }

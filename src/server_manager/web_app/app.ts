@@ -22,13 +22,16 @@ import * as accounts from '../model/accounts';
 import * as digitalocean from '../model/digitalocean';
 import * as gcp from '../model/gcp';
 import * as server from '../model/server';
-import {CloudLocation} from '../model/location';
 
 import {DisplayDataAmount, displayDataAmountToBytes,} from './data_formatting';
 import {filterOptions, getShortName} from './location_formatting';
 import {parseManualServerConfig} from './management_urls';
-import {AppRoot, ServerListEntry} from './ui_components/app-root';
-import {DisplayAccessKey, ServerView} from './ui_components/outline-server-view';
+import {HttpError} from '../cloud/gcp_api';
+
+import type {CloudLocation} from '../model/location';
+import type {AppRoot, ServerListEntry} from './ui_components/app-root';
+import type {FeedbackDetail} from './ui_components/outline-feedback-dialog';
+import type {DisplayAccessKey, ServerView} from './ui_components/outline-server-view';
 
 // The Outline DigitalOcean team's referral code:
 //   https://www.digitalocean.com/help/referral-program/
@@ -58,7 +61,8 @@ async function computeDefaultDataLimit(
     // Assume non-managed servers have a data transfer capacity of 1TB.
     let serverTransferCapacity: server.DataAmount = {terabytes: 1};
     if (isManagedServer(server)) {
-      serverTransferCapacity = server.getHost().getMonthlyOutboundTransferLimit();
+      serverTransferCapacity =
+          server.getHost().getMonthlyOutboundTransferLimit() ?? serverTransferCapacity;
     }
     if (!accessKeys) {
       accessKeys = await server.listAccessKeys();
@@ -244,7 +248,7 @@ export class App {
     });
 
     appRoot.addEventListener('SubmitFeedback', (event: CustomEvent) => {
-      const detail = event.detail;
+      const detail: FeedbackDetail = event.detail;
       try {
         sentry.captureEvent({
           message: detail.userFeedback,
@@ -334,7 +338,7 @@ export class App {
       this.digitalOceanAccount = digitalOceanAccount;
       this.appRoot.digitalOceanAccount = {
         id: this.digitalOceanAccount.getId(),
-        name: await this.digitalOceanAccount.getName()
+        name: await this.digitalOceanAccount.getName(),
       };
       const status = await this.digitalOceanAccount.getStatus();
       if (status !== digitalocean.Status.ACTIVE) {
@@ -359,15 +363,32 @@ export class App {
     }
 
     this.gcpAccount = gcpAccount;
-    this.appRoot.gcpAccount = {id: this.gcpAccount.getId(), name: await this.gcpAccount.getName()};
+    this.appRoot.gcpAccount = {
+      id: this.gcpAccount.getId(),
+      name: await this.gcpAccount.getName(),
+    };
 
     const result = [];
     const gcpProjects = await this.gcpAccount.listProjects();
     for (const gcpProject of gcpProjects) {
-      const servers = await this.gcpAccount.listServers(gcpProject.id);
-      for (const server of servers) {
-        this.addServer(this.gcpAccount.getId(), server);
-        result.push(server);
+      try {
+        const servers = await this.gcpAccount.listServers(gcpProject.id);
+        for (const server of servers) {
+          this.addServer(this.gcpAccount.getId(), server);
+          result.push(server);
+        }
+      } catch (e) {
+        if (e instanceof HttpError && e.getStatusCode() === 403) {
+          // listServers() throws an HTTP 403 if the outline project has been
+          // created but the billing account has been removed, which can
+          // easily happen after the free trial period expires.  This is
+          // harmless, because a project with no billing cannot contain any
+          // servers, and the GCP server creation flow will check and correct
+          // the billing account setup.
+          console.warn(`Ignoring HTTP 403 for GCP project "${gcpProject.id}"`);
+        } else {
+          throw e;
+        }
       }
     }
     return result;
@@ -407,18 +428,18 @@ export class App {
     const serverEntry = this.makeServerListEntry(accountId, server);
     this.appRoot.serverList = this.appRoot.serverList.concat([serverEntry]);
 
-    if (isManagedServer(server) && !server.isInstallCompleted()) {
+    if (isManagedServer(server)) {
       this.setServerProgressView(server);
     }
 
     // Once the server is added to the list, do the rest asynchronously.
     setTimeout(async () => {
       // Wait for server config to load, then update the server view and list.
-      if (isManagedServer(server) && !server.isInstallCompleted()) {
+      if (isManagedServer(server)) {
         try {
-          await server.waitOnInstall();
+          for await (const _ of server.monitorInstallProgress()) {}
         } catch (error) {
-          if (error instanceof errors.DeletedServerError) {
+          if (error instanceof errors.ServerInstallCanceledError) {
             // User clicked "Cancel" on the loading screen.
             return;
           }
@@ -584,6 +605,7 @@ export class App {
     let digitalOceanAccount: digitalocean.Account = null;
     try {
       const accessToken = await this.runDigitalOceanOauthFlow();
+      bringToFront();
       digitalOceanAccount = this.cloudAccounts.connectDigitalOceanAccount(accessToken);
     } catch (error) {
       this.disconnectDigitalOceanAccount();
@@ -608,6 +630,7 @@ export class App {
     let gcpAccount: gcp.Account = null;
     try {
       const refreshToken = await this.runGcpOauthFlow();
+      bringToFront();
       gcpAccount = this.cloudAccounts.connectGcpAccount(refreshToken);
     } catch (error) {
       this.disconnectGcpAccount();
@@ -620,8 +643,12 @@ export class App {
       return;
     }
 
-    await this.loadGcpAccount(gcpAccount);
-    this.showIntro();
+    const gcpServers = await this.loadGcpAccount(gcpAccount);
+    if (gcpServers.length > 0) {
+      this.showServer(gcpServers[0]);
+    } else {
+      this.appRoot.getAndShowGcpCreateServerApp().start(this.gcpAccount);
+    }
   }
 
   // Clears the DigitalOcean credentials and returns to the intro screen.
@@ -703,7 +730,8 @@ export class App {
   }
 
   private makeLocalizedServerName(cloudLocation: CloudLocation): string {
-    const placeName = getShortName(cloudLocation, this.appRoot.localize);
+    const placeName = getShortName(cloudLocation,
+        this.appRoot.localize as (id: string) => string);
     return this.appRoot.localize('server-name', 'serverLocation', placeName);
   }
 
@@ -728,9 +756,7 @@ export class App {
     const view = await this.appRoot.getServerView(server.getId());
     const version = server.getVersion();
     view.selectedPage = 'managementView';
-    view.serverId = server.getId();
     view.metricsId = server.getMetricsId();
-    view.serverName = server.getName();
     view.serverHostname = server.getHostnameForAccessKeys();
     view.serverManagementApiUrl = server.getManagementApiUrl();
     view.serverPortForNewAccessKeys = server.getPortForNewAccessKeys();
@@ -749,14 +775,11 @@ export class App {
     }
 
     if (isManagedServer(server)) {
-      view.isServerManaged = true;
       const host = server.getHost();
       view.monthlyCost = host.getMonthlyCost()?.usd;
       view.monthlyOutboundTransferBytes =
           host.getMonthlyOutboundTransferLimit()?.terabytes * (10 ** 12);
       view.cloudLocation = host.getCloudLocation();
-    } else {
-      view.isServerManaged = false;
     }
 
     view.metricsEnabled = server.getMetricsEnabled();
@@ -789,19 +812,20 @@ export class App {
     const serverId = server.getId();
     const serverView = await this.appRoot.getServerView(serverId);
     serverView.selectedPage = 'unreachableView';
-    serverView.isServerManaged = isManagedServer(server);
-    serverView.serverName =
-        this.makeDisplayName(server);  // Don't get the name from the remote server.
-    serverView.serverId = serverId;
     serverView.retryDisplayingServer = async () => {
       await this.updateServerView(server);
     };
   }
 
-  private async setServerProgressView(server: server.Server): Promise<void> {
+  private async setServerProgressView(server: server.ManagedServer): Promise<void> {
     const view = await this.appRoot.getServerView(server.getId());
     view.serverName = this.makeDisplayName(server);
     view.selectedPage = 'progressView';
+    try {
+      for await (view.installProgress of server.monitorInstallProgress()) {}
+    } catch {
+      // Ignore any errors; they will be handled by `this.addServer`.
+    }
   }
 
   private showMetricsOptInWhenNeeded(selectedServer: server.Server, serverView: ServerView) {
@@ -1112,6 +1136,7 @@ export class App {
     const confirmationButton = this.appRoot.localize('destroy');
     this.appRoot.getConfirmation(confirmationTitle, confirmationText, confirmationButton, () => {
       this.digitalOceanRetry(() => {
+            // TODO: Add an activity indicator in OutlineServerView during deletion.
             return serverToDelete.getHost().delete();
           })
           .then(
@@ -1187,13 +1212,16 @@ export class App {
       console.error(msg);
       throw new Error(msg);
     }
+    // TODO: Make the cancel button show an immediate state transition,
+    // indicate that deletion is in-progress, and allow the user to return
+    // to server creation in the meantime.
     serverToCancel.getHost().delete().then(() => {
       this.removeServer(serverToCancel.getId());
       this.showIntro();
     });
   }
 
-  private async setAppLanguage(languageCode: string, languageDir: string) {
+  private async setAppLanguage(languageCode: string, languageDir: 'rtl'|'ltr') {
     try {
       await this.appRoot.setLanguage(languageCode, languageDir);
       document.documentElement.setAttribute('dir', languageDir);

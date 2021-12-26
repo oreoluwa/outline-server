@@ -81,6 +81,10 @@
     "message": "Changhua County",
     "description": "Name of the county in Taiwan."
   },
+  "geo_delhi": {
+    "message": "Delhi",
+    "description": "Name of the city in India."
+  },
   "geo_eemshaven": {
     "message": "Eemshaven",
     "description": "Name of the seaport in the Netherlands."
@@ -120,6 +124,10 @@
   "geo_los_angeles": {
     "message": "Los Angeles",
     "description": "Name of the city in California, USA."
+  },
+  "geo_melbourne": {
+    "message": "Melbourne",
+    "description": "Name of the city in Australia."
   },
   "geo_montreal": {
     "message": "Montréal",
@@ -267,9 +275,9 @@
     "message": "Destroy",
     "description": "This string appears as a button in a dialog that requests user confirmation for destroying a server. Clicking the button causes the server to be deleted."
   },
-  "digitalocean_disconnect": {
+  "disconnect": {
     "message": "Disconnect",
-    "description": "This string appears as a button in a dialog to disconnect the user's DigitalOcean account from the application. Clicking it signs the user out of DigitalOcean, a cloud server provider."
+    "description": "This string appears as a button in a dialog to disconnect the user's cloud service account from the application. Clicking it signs the user out of the cloud server provider."
   },
   "digitalocean_disconnect_account": {
     "message": "Disconnect DigitalOcean account",
@@ -423,6 +431,10 @@
     "message": "Could not remove data limit from this access key",
     "description": "This string appears in an error notification toast. It is shown on failure to remove the data transfer limit on a particular access key."
   },
+  "experimental": {
+    "message": "Experimental",
+    "description": "This tag appears above a feature that is not yet fully tested."
+  },
   "experiments": {
     "message": "Experiments",
     "description": "This string is the title of a section that displays opt-in experimental features."
@@ -549,7 +561,8 @@
   },
   "gcp_billing_action": {
     "message": "Next",
-    "description": "Button label for a button that opens a the billing page in the web browser"
+    "description": "Button label for a button that opens the billing page in the web browser (i.e. next step).",
+    "meaning": "gcp_billing_action"
   },
   "gcp_billing_body": {
     "message": "Waiting for you to $START_OF_LINK$add a billing account on Google Cloud$END_OF_LINK$",
@@ -610,10 +623,6 @@
   "gcp_create_vm": {
     "message": "Create a VM Instance",
     "description": "This string appears as a header for a set of instructions for creating a new Google Cloud VM"
-  },
-  "gcp_disconnect": {
-    "message": "Disconnect",
-    "description": "This string appears as a button in a dialog to disconnect the user's Google Cloud Platform account from the application. Clicking it signs the user out of Google Cloud Platform, a cloud server provider."
   },
   "gcp_disconnect_account": {
     "message": "Disconnect Google Cloud Platform account",
@@ -885,6 +894,10 @@
     "message": "This is where your internet experience will come from.",
     "description": "This string appears within the server creation flow, as a sub-header of the server selection view. Lets the user know about the implications of selecting a server location."
   },
+  "region_best_value": {
+    "message": "Best Value",
+    "description": "Appears within the server creation flow, indicating that a server option costs less than the other options."
+  },
   "region_setup": {
     "message": "Set up Outline",
     "description": "This string appears within the server creation flow, as a button of the server selection view. Clicking it creates an Outline server at the selected location. 'Set up' means install and run the Outline server software."
@@ -1107,8 +1120,8 @@
     "message": "Don't have a server? Create an account with DigitalOcean.",
     "description": "This string appears in the server setup view as a sub-header. Prompts the user to create a DigitalOcean account to deploy Outline servers. DigitalOcean is a cloud provider name and should not be translated."
   },
-  "setup_do_cancel": {
-    "message": "Cancel at anytime",
+  "setup_cancel": {
+    "message": "Cancel at any time",
     "description": "This string appears in the server setup view as an item of a list describing Outline's features."
   },
   "setup_do_cost": {
@@ -1124,7 +1137,7 @@
     "description": "This string appears in the server setup view as an item of a list describing Outline's features. Refers to the monthly amount of transfer data offered by a cloud server provider. TB is an abbreviation for terabyte and should not be translated."
   },
   "setup_do_description": {
-    "message": "This could take up to two minutes. You can destroy this server at anytime.",
+    "message": "This could take several minutes. You can destroy this server at any time.",
     "description": "This string appears in the server setup view as a sub-header. Displayed when a server is being created along a progress bar."
   },
   "setup_do_easiest": {
@@ -1134,6 +1147,45 @@
   "setup_do_title": {
     "message": "Setting up Outline.",
     "description": "This string appears in the server setup view as a header. Displayed when a server is being created along a progress bar."
+  },
+  "setup_gcp_easy": {
+    "message": "Easy setup process",
+    "description": "This string appears in the server setup view as an item of a list describing Outline's features."
+  },
+  "setup_gcp_free_tier": {
+    "message": "With $START_OF_LINK1$Free Tier$END_OF_LINK$, your first server starts at $START_OF_LINK2$US$3/month$END_OF_LINK$",
+    "description": "Describes the benefits of the GCP Free Tier program (https://cloud.google.com/free/docs/gcp-free-tier)",
+    "placeholders": {
+      "END_OF_LINK": {
+        "content": "{closeLink}"
+      },
+      "START_OF_LINK1": {
+        "content": "{openLinkFreeTier}"
+      },
+      "START_OF_LINK2": {
+        "content": "{openLinkIpPrice}"
+      }
+    }
+  },
+  "setup_gcp_free_trial": {
+    "message": "$START_OF_LINK$90 day free trial$END_OF_LINK$ for new users",
+    "description": "Describes the benefits of the GCP Free Trial program (https://cloud.google.com/free/docs/gcp-free-tier/#free-trial)",
+    "placeholders": {
+      "END_OF_LINK": {
+        "content": "{closeLink}"
+      },
+      "START_OF_LINK": {
+        "content": "{openLinkFreeTrial}"
+      }
+    }
+  },
+  "setup_gcp_create": {
+    "message": "Create a new server with your Google account. Costs vary by location and usage.",
+    "description": "This string appears in the server setup view as a paragraph within a card. Describes Outline servers' features when deployed on Google Cloud Platform."
+  },
+  "setup_gcp_promo": {
+    "message": "Try the new automatic Outline server creation process for Google Cloud",
+    "description": "Link text that takes users to an easier setup procedure"
   },
   "setup_firewall_instructions": {
     "message": "Firewall instructions",

@@ -15,8 +15,6 @@
 */
 import '@polymer/paper-button/paper-button';
 import '@polymer/paper-progress/paper-progress';
-import '@polymer/iron-icon/iron-icon';
-import '@polymer/iron-icons/iron-icons';
 import './outline-step-view';
 
 import {css, customElement, html, LitElement, property} from 'lit-element';
@@ -25,21 +23,17 @@ import {COMMON_STYLES} from './cloud-install-styles';
 import {CloudLocationOption} from '../../model/location';
 import {getShortName, localizeCountry} from '../location_formatting';
 
-// TODO: Add more flags
 const FLAG_IMAGE_DIR = 'images/flags';
-const FLAG_MAPPING: {[countryCode: string]: string} = {
-  'IN': `${FLAG_IMAGE_DIR}/india.png`,
-  'SG': `${FLAG_IMAGE_DIR}/singapore.png`,
-  'UK': `${FLAG_IMAGE_DIR}/uk.png`,
-  'DE': `${FLAG_IMAGE_DIR}/germany.png`,
-  'NL': `${FLAG_IMAGE_DIR}/netherlands.png`,
-  'CA': `${FLAG_IMAGE_DIR}/canada.png`,
-  'US': `${FLAG_IMAGE_DIR}/us.png`,
-};
+
+// TODO: Reorganize type definitions to improve separation between
+// model and view.
+export interface RegionPickerOption extends CloudLocationOption {
+  markedBestValue?: boolean;
+}
 
 @customElement('outline-region-picker-step')
 export class OutlineRegionPicker extends LitElement {
-  @property({type: Array}) options: CloudLocationOption[] = [];
+  @property({type: Array}) options: RegionPickerOption[] = [];
   @property({type: Number}) selectedIndex = -1;
   @property({type: Boolean}) isServerBeingCreated = false;
   @property({type: Function}) localize: (msgId: string, ...params: string[]) => string;
@@ -54,10 +48,10 @@ export class OutlineRegionPicker extends LitElement {
         background-color: rgba(255, 255, 255, 0.08);
         box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.14), 0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 1px 3px 0 rgba(0, 0, 0, 0.2);
         border-radius: 4px;
-        border: 1px solid var(--primary-green);
+        border: 2px solid var(--primary-green);
       }
       input[type="radio"] + label.city-button:hover {
-        border: 1px solid var(--primary-green);
+        border: 2px solid var(--primary-green);
       }
       input[type="radio"] + label.city-button {
         display: inline-block;
@@ -67,8 +61,7 @@ export class OutlineRegionPicker extends LitElement {
         position: relative;
         margin: 4px;
         text-align: center;
-        border: 1px solid;
-        border-color: rgba(0, 0, 0, 0);
+        border: 2px solid rgba(0, 0, 0, 0);
         cursor: pointer;
         transition: 0.5s;
         background: var(--background-contrast-color);
@@ -84,6 +77,12 @@ export class OutlineRegionPicker extends LitElement {
         font-size: 16px;
         line-height: 19px;
       }
+      .country-name {
+        color: var(--medium-gray);
+        font-size: 12px;
+        line-height: 19px;
+        text-transform: uppercase;
+      }
       paper-button {
         background: var(--primary-green);
         color: #fff;
@@ -91,26 +90,50 @@ export class OutlineRegionPicker extends LitElement {
         font-size: 14px;
       }
       .flag {
-        width: 86px;
-        height: 86px;
-        margin-bottom: 48px
+        width: 100%;
+        height: 100%;
+      }
+      .flag-overlay {
+        display: inline-block;
+        width: 100px;
+        height: 100px;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-radius: 50%; /* Make a circle */
+        position: relative; /* Ensure the gradient uses the correct origin point. */
+        margin-bottom: 12px;
+      }
+      .flag-overlay::after {
+        content: "";
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(to right, rgba(20, 20, 20, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
+      }
+      .best-value-label {
+        background-color: var(--primary-green);
+        color: #374248;
+        position: absolute;
+        top: 117px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        display: flex;
+        align-items: center;
+        min-height: 20px;
+        border-radius: 10px;
+        padding: 0px 10px 0px 10px;
+        font-size: 12px;
+        line-height: 14px;
       }
       .card-content {
         display: flex;
         flex-flow: wrap;
         padding-top: 24px;
       }
-      .card-header {
-        height: 24px;
-        display: flex;
-        justify-content: flex-end;
-      }
       label.city-button {
-        padding: 0 2px 24px 2px
-      }
-      iron-icon {
-        color: var(--primary-green);
-        padding: 6px 6px 0px 6px;
+        padding: 28px 8px 11px 8px;
       }
     `];
   }
@@ -130,13 +153,15 @@ export class OutlineRegionPicker extends LitElement {
           return html`
           <input type="radio" id="card-${index}" name="city" value="${index}" ?disabled="${!option.available}" .checked="${this.selectedIndex === index}" @change="${this._locationSelected}">
           <label for="card-${index}" class="city-button">
-            <div class="card-header">
-              ${this.selectedIndex === index ? html`<iron-icon icon="check-circle"></iron-icon>` : ''}
+            <div class="flag-overlay">
+              <img class="flag" src="${this._flagImage(option)}">
             </div>
-            <img class="flag" src="${this._flagImage(option)}">
             <div class="geo-name">${getShortName(option.cloudLocation, this.localize)}</div>
-            <div class="geo-name">${option.cloudLocation.location?.countryIsRedundant() ? '' :
+            <div class="country-name">${option.cloudLocation.location?.countryIsRedundant() ? '' :
                 localizeCountry(option.cloudLocation.location, this.language)}</div>
+            ${option.markedBestValue ?
+            html`<div class="best-value-label">${this.localize('region-best-value')}</div>`
+                : ''}
           </label>`;
         })}
       </div>
@@ -160,7 +185,9 @@ export class OutlineRegionPicker extends LitElement {
   }
 
   _flagImage(item: CloudLocationOption): string {
-     return FLAG_MAPPING[item.cloudLocation.location?.countryCode] || `${FLAG_IMAGE_DIR}/unknown.png`;
+    const countryCode = item.cloudLocation.location?.countryCode?.toLowerCase();
+    const fileName = countryCode ? `${countryCode}.svg` : 'unknown.png';
+    return `${FLAG_IMAGE_DIR}/${fileName}`;
   }
 
   _handleCreateServerTap(): void {
